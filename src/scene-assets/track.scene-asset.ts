@@ -50,8 +50,9 @@ function ribbon(inner: number, outer: number, y: number, stripe?: [Color, Color]
     const b = [SAMPLE_X[i] + NORMAL_X[i] * outer, y, SAMPLE_Z[i] + NORMAL_Z[i] * outer];
     const c = [SAMPLE_X[j] + NORMAL_X[j] * inner, y, SAMPLE_Z[j] + NORMAL_Z[j] * inner];
     const d = [SAMPLE_X[j] + NORMAL_X[j] * outer, y, SAMPLE_Z[j] + NORMAL_Z[j] * outer];
-    // Winding chosen so the face normal points up for either sign of offset order.
-    const quad = inner < outer ? [a, c, b, b, c, d] : [a, b, c, b, d, c];
+    // Counter-clockwise seen from above (normal +Y) for either offset order.
+    // With right = (-tz, tx), (inner->outer) x (i->j) points up only when inner < outer.
+    const quad = inner < outer ? [a, b, c, b, d, c] : [a, c, b, b, c, d];
     const col = stripe ? stripe[Math.floor(i / 3) % 2] : null;
     for (const v of quad) {
       if (colors && col) {

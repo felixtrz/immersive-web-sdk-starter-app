@@ -1,5 +1,8 @@
 import { World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
+import { AutopilotSystem } from './systems/autopilot.js';
+import { CameraModeSystem } from './systems/camera-mode.js';
+import { CaptureProbeSystem } from './systems/capture-probe.js';
 import { CockpitRigSystem } from './systems/cockpit-rig.js';
 import { DashboardSystem } from './systems/dashboard.js';
 import { GhostSystem } from './systems/ghost.js';
@@ -21,6 +24,15 @@ World.create(
     .registerSystem(LapSystem, { priority: -25 })
     .registerSystem(GhostSystem, { priority: -20 })
     .registerSystem(CockpitRigSystem, { priority: -15 })
+    .registerSystem(CameraModeSystem, { priority: -10 })
     .registerSystem(KartAudioSystem)
     .registerSystem(DashboardSystem);
+
+  const params = new URLSearchParams(location.search);
+  if (params.has('autopilot')) {
+    world.registerSystem(AutopilotSystem, { priority: -38 });
+  }
+  if (params.has('capture')) {
+    world.registerSystem(CaptureProbeSystem);
+  }
 });

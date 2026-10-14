@@ -48,14 +48,14 @@
           "id": "steering-wheel",
           "name": "Steering Wheel",
           "content": { "type": "asset", "asset": "steering-wheel" },
-          "transform": { "position": [0, 0.7, -0.24], "rotationDeg": [-25, 0, 0] },
+          "transform": { "position": [0, 0.62, -0.28], "rotationDeg": [-38, 0, 0] },
           "components": { "SteeringWheel": {} }
         },
         {
           "id": "dashboard",
           "name": "Dashboard",
           "content": { "type": "asset", "asset": "dashboard" },
-          "transform": { "position": [0, 0.6, -0.62], "rotationDeg": [-30, 0, 0], "scale": 0.35 },
+          "transform": { "position": [0, 0.47, -0.52], "rotationDeg": [-58, 0, 0], "scale": 0.24 },
           "components": { "Dashboard": {} }
         },
         {

@@ -19,7 +19,8 @@
     "reference:warmup": "iwsdk reference warmup",
     "typecheck": "tsc --noEmit",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sim": "node scripts/sim-race.mjs"
   },
   "dependencies": {
     "@iwsdk/core": "1.0.0-rc.2",

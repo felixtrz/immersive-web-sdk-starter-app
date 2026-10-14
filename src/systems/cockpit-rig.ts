@@ -3,7 +3,7 @@ import { Kart } from '../race-components.js';
 
 /** Seated headset eye height above local-floor is ~1.2 m; the kart eye point is ~0.95 m. */
 const XR_SEAT_OFFSET_Y = -0.3;
-const BROWSER_EYE = { y: 0.98, z: 0.22, pitch: -0.14 };
+export const BROWSER_EYE = { y: 1.08, z: 0.2, pitch: -0.1 };
 
 /** Parents the player rig to the kart so the cockpit carries the camera in both modes. */
 export class CockpitRigSystem extends createSystem({
