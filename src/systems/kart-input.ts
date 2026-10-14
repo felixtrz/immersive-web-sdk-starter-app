@@ -8,9 +8,15 @@ const HAND_FULL_LOCK = 1.0;
 const HAND_DEADZONE = 0.04;
 const HAND_SMOOTHING = 18;
 const MIN_HAND_SPAN = 0.12;
-/** Thumb-to-index tip distance (m) for a fully closed / fully open pinch. */
-const PINCH_CLOSED = 0.012;
-const PINCH_OPEN = 0.07;
+/**
+ * Thumb-to-index tip joint distance (m) for a fully closed / fully open pinch.
+ * Joint poses are finger-tip centres, so a firm pinch still reads ~1.5-2 cm and
+ * a relaxed open hand ~3.5-5 cm. OPEN must sit below the relaxed reading or an
+ * idle hand produces constant partial brake/throttle.
+ */
+const PINCH_CLOSED = 0.02;
+const PINCH_OPEN = 0.035;
+const PINCH_DEADZONE = 0.1;
 
 /**
  * Keyboard / gamepad / XR -> KartControls.
@@ -148,7 +154,8 @@ export class KartInputSystem extends createSystem({
         const b = ip.transform.position;
         const d = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
         const v = 1 - (d - PINCH_CLOSED) / (PINCH_OPEN - PINCH_CLOSED);
-        this.pinch[side] = Math.max(this.pinch[side], v < 0.05 ? 0 : Math.min(1, v));
+        const pinch = v < PINCH_DEADZONE ? 0 : Math.min(1, (v - PINCH_DEADZONE) / (1 - PINCH_DEADZONE));
+        this.pinch[side] = Math.max(this.pinch[side], pinch);
       } else if (src.gripSpace || src.targetRaySpace) {
         this.tracked[side] = true;
         this.pinch[side] = Math.max(this.pinch[side], src.gamepad?.buttons[0]?.value ?? 0);
