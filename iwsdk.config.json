@@ -47,7 +47,7 @@
       "device": "metaQuest3",
       "injectOnBuild": true,
       "activation": {
-        "source": "^(localhost|127\\.0\\.0\\.1|.*\\.vercel\\.app|.*\\.vusercontent\\.net|.*\\.v0\\.build)$"
+        "source": "^(localhost|127\\.0\\.0\\.1|.*\\.vercel\\.app|.*\\.vusercontent\\.net|.*\\.v0\\.build|.*\\.vercel\\.run)$"
       }
     }
   }
