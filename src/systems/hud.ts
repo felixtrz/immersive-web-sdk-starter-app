@@ -1,4 +1,4 @@
-import { createSystem, Entity, UIKit, UIKitMLAsset } from '@iwsdk/core';
+import { createSystem, Entity, UIKit, UIKitMLAsset, VisibilityState } from '@iwsdk/core';
 import { Kart, RacePhase, RaceState } from '../race-components.js';
 import { LAP_COUNT, SAMPLE_COUNT } from '../track.js';
 
@@ -114,7 +114,10 @@ export class HudSystem extends createSystem({
     const idle = phase === RacePhase.Idle;
     if (idle) this.bestAtStart = best;
 
-    this.show('bar', !idle && !finished);
+    // In VR the steering-column display carries all of this; nothing floats over the track.
+    const desktop = this.world.visibilityState.peek() === VisibilityState.NonImmersive;
+    this.globals.liveDelta = racing ? this.liveDelta : Number.NaN;
+    this.show('bar', desktop && !idle && !finished);
     this.show('panel', idle);
     this.style('bar', 'backgroundColor', this.flash > 0 ? BAR_HIT : BAR_BG);
 
@@ -147,7 +150,7 @@ export class HudSystem extends createSystem({
       sub = done > 1 && last >= 0 ? `${fmt(last)}   ${signed(d)}` : fmt(last);
       bigColor = done === LAP_COUNT - 1 ? AMBER : WHITE;
     }
-    this.show('msg', big !== '');
+    this.show('msg', desktop && big !== '');
     if (big !== '') {
       this.set('msg-big', big);
       this.set('msg-sub', sub);
@@ -156,7 +159,7 @@ export class HudSystem extends createSystem({
       this.style('msg-sub', 'display', sub ? 'flex' : 'none');
     }
 
-    this.show('results', finished);
+    this.show('results', desktop && finished);
     if (finished) {
       const laps = [
         kart.getValue(RaceState, 'lap1')!,

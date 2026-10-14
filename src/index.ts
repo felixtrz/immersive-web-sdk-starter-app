@@ -11,6 +11,7 @@ import { GhostSystem } from './systems/ghost.js';
 import { HudSystem } from './systems/hud.js';
 import { KartAudioSystem } from './systems/kart-audio.js';
 import { KartDriveSystem } from './systems/kart-drive.js';
+import { KartFeelSystem } from './systems/kart-feel.js';
 import { KartInputSystem } from './systems/kart-input.js';
 import { LapSystem } from './systems/lap.js';
 import { RaceSystem } from './systems/race.js';
@@ -29,6 +30,7 @@ World.create(
     .registerSystem(CockpitRigSystem, { priority: -15 })
     .registerSystem(CameraModeSystem, { priority: -10 })
     .registerSystem(EnvironmentSystem, { priority: -5 })
+    .registerSystem(KartFeelSystem, { priority: -8 })
     .registerSystem(CrowdSystem)
     .registerSystem(KartAudioSystem)
     .registerSystem(DashboardSystem)

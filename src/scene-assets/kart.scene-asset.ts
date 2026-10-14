@@ -7,11 +7,19 @@ import {
   SphereGeometry,
   type BufferGeometry,
   type Material,
+  type Object3D,
 } from '@iwsdk/core';
 
-/** Player kart. Forward is -Z; origin on the ground under the seat. */
+/**
+ * Player kart. Forward is -Z; origin on the ground under the seat.
+ * `Body` holds everything sprung (shaken by KartFeelSystem); `WheelSteer-*` pivots
+ * yaw the front wheels and `WheelSpin-*` pivots roll all four.
+ */
 const kart = new Group();
 kart.name = 'Kart';
+const body = new Group();
+body.name = 'Body';
+kart.add(body);
 
 const orange = new MeshStandardMaterial({ color: 0xf07a1a, roughness: 0.45, metalness: 0.05, flatShading: true });
 const cream = new MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.5, flatShading: true });
@@ -31,7 +39,7 @@ function part(
   rx = 0,
   ry = 0,
   rz = 0,
-  parent: Group = kart,
+  parent: Object3D = body,
 ): Mesh {
   const m = new Mesh(geo, mat);
   m.position.set(x, y, z);
@@ -66,6 +74,12 @@ part(new BoxGeometry(0.46, 0.14, 0.34), orange, 0, 0.36, -0.86, -0.2);
 part(new CylinderGeometry(0.03, 0.04, 0.68, 8), dark, 0, 0.48, -0.59, 1.15);
 part(new CylinderGeometry(0.06, 0.06, 0.08, 10), dark, 0, 0.6, -0.31, 1.15);
 
+// Data-display binnacle on a stalk above the column (dashboard entity sits at 0, 0.76, -0.72, -15deg).
+const DASH_TILT = (-15 * Math.PI) / 180;
+part(new BoxGeometry(0.31, 0.15, 0.03), dark, 0, 0.753, -0.746, DASH_TILT);
+part(new BoxGeometry(0.31, 0.012, 0.07), dark, 0, 0.838, -0.73, DASH_TILT);
+part(new CylinderGeometry(0.018, 0.022, 0.3, 8), dark, 0, 0.55, -0.765);
+
 // Bucket seat with bolsters and headrest.
 part(new BoxGeometry(0.5, 0.1, 0.45), seatMat, 0, 0.31, 0.2);
 part(new BoxGeometry(0.5, 0.55, 0.08), seatMat, 0, 0.58, 0.45, -0.22);
@@ -81,24 +95,37 @@ part(new CylinderGeometry(0.045, 0.045, 0.4, 8), steel, 0.5, 0.42, 0.9, Math.PI 
 part(new CylinderGeometry(0.03, 0.03, 1.5, 6), dark, 0, 0.23, 0.42, 0, 0, Math.PI / 2);
 part(new CylinderGeometry(0.03, 0.03, 1.3, 6), dark, 0, 0.19, -1.1, 0, 0, Math.PI / 2);
 
-// Wheels: wider, taller rears; cream rims with orange hubs on the outer face.
+// Wheels: wider, taller rears; cream rims with orange spokes so rotation reads.
 const hubGeo = new CylinderGeometry(0.05, 0.05, 0.04, 8);
-for (const [x, z, r, w] of [
-  [-0.7, -1.1, 0.19, 0.18],
-  [0.7, -1.1, 0.19, 0.18],
-  [-0.74, 0.42, 0.23, 0.26],
-  [0.74, 0.42, 0.23, 0.26],
-] as const) {
+const WHEELS = [
+  ['FL', -0.7, -1.1, 0.19, 0.18],
+  ['FR', 0.7, -1.1, 0.19, 0.18],
+  ['RL', -0.74, 0.42, 0.23, 0.26],
+  ['RR', 0.74, 0.42, 0.23, 0.26],
+] as const;
+for (const [id, x, z, r, w] of WHEELS) {
   const side = Math.sign(x);
-  part(new CylinderGeometry(r, r, w, 14), tire, x, r, z, 0, 0, Math.PI / 2);
-  part(new CylinderGeometry(r * 0.6, r * 0.6, w + 0.01, 10), cream, x, r, z, 0, 0, Math.PI / 2);
-  part(hubGeo, orange, x + side * (w / 2 + 0.01), r, z, 0, 0, Math.PI / 2);
+  const steer = new Group();
+  steer.name = `WheelSteer-${id}`;
+  steer.position.set(x, r, z);
+  kart.add(steer);
+  const spin = new Group();
+  spin.name = `WheelSpin-${id}`;
+  spin.userData.radius = r;
+  steer.add(spin);
+  part(new CylinderGeometry(r, r, w, 14), tire, 0, 0, 0, 0, 0, Math.PI / 2, spin);
+  part(new CylinderGeometry(r * 0.6, r * 0.6, w + 0.01, 10), cream, 0, 0, 0, 0, 0, Math.PI / 2, spin);
+  const face = side * (w / 2 + 0.012);
+  part(hubGeo, orange, face, 0, 0, 0, 0, Math.PI / 2, spin);
+  for (const a of [0, Math.PI / 3, (2 * Math.PI) / 3]) {
+    part(new BoxGeometry(0.012, r * 1.15, 0.03), orange, face, 0, 0, a, 0, 0, spin);
+  }
 }
 
 // Driver figure: hidden in cockpit/XR by CameraModeSystem so it never blocks the player's view.
 const driver = new Group();
 driver.name = 'Driver';
-kart.add(driver);
+body.add(driver);
 part(new BoxGeometry(0.4, 0.42, 0.26), suit, 0, 0.6, 0.3, -0.2, 0, 0, driver);
 part(new SphereGeometry(0.16, 12, 10), cream, 0, 0.98, 0.26, 0, 0, 0, driver);
 part(new BoxGeometry(0.22, 0.08, 0.06), visor, 0, 0.99, 0.12, 0, 0, 0, driver);

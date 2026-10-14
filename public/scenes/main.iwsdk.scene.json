@@ -139,15 +139,15 @@
           "transform": {
             "position": [
               0,
-              0.47,
-              -0.52
+              0.76,
+              -0.72
             ],
             "rotationDeg": [
-              -58,
+              -15,
               0,
               0
             ],
-            "scale": 0.24
+            "scale": 0.05
           },
           "components": {
             "Dashboard": {}

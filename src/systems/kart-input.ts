@@ -32,6 +32,13 @@ export class KartInputSystem extends createSystem({
   private pinch = { left: 0, right: 0 };
   private tracked = { left: false, right: false };
 
+  init(): void {
+    // Hands still steer and pedal; their meshes would only clip through the wheel and dash.
+    const hands = this.input.xr.visualAdapters.hand;
+    hands.left.toggleVisual(false);
+    hands.right.toggleVisual(false);
+  }
+
   update(delta: number): void {
     const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
     const wheel = this.queries.wheel.entities.values().next().value as Entity | undefined;
