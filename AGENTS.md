@@ -21,14 +21,16 @@ reconnect automatically. Wait for `npx @iwsdk/cli dev status` to report
 `src/index.js` imports it and passes it whole to `World.create()`. Do not
 hand-build that options object.
 
-**The dev server has two modes in this template.** `npm run dev` is plain Vite —
-it serves the app and nothing else, which is what the v0 sandbox preview and
-`vercel dev` need. `npm run dev:managed` (`iwsdk dev up`) additionally launches
-the managed browser that hosts the MCP command bridge; every scene, ecs, ui, xr
-and browser tool needs it. `--no-open` intentionally starts only the server:
-status reports `browser.status: "not_launched"`, and browser-backed commands fail
-immediately with `browser_not_launched` plus restart guidance. One managed window
-hosts two roles, editor and runtime.
+**`npm run dev` is an idempotent supervisor, not Vite.** It runs
+`scripts/dev.mjs`, which ensures one detached IWSDK runtime (Vite + a headless
+managed browser hosting the MCP command bridge) is running, attaches to it,
+prints Vite's ready banner and streams new runtime log lines. Running it again
+attaches instead of restarting, and the newest supervisor replaces older ones
+without touching the runtime. The runtime is only restarted when it is missing
+or `node_modules` was reinstalled after it started. Every scene, ecs, ui, xr and
+browser tool needs that managed browser; one managed window hosts two roles,
+editor and runtime. Do not run `iwsdk dev restart --foreground` or a second
+`dev up` by hand — check `npx @iwsdk/cli dev status` first.
 
 **`src/assets.ts`/`src/assets.js` is evaluated twice, in two different JS
 realms** — once by the app runtime, once by the editor. It must be deterministic
@@ -51,23 +53,28 @@ and subtle breakage. Exception: `import type { GLTF } from 'three/addons/...'`.
 
 This repository is packaged as a template for [v0](https://v0.app/). A v0 chat
 runs it in a Vercel Sandbox: a real Node.js VM with a framework-aware dev server,
-a terminal, and Claude Code pre-installed. Four platform deltas matter:
+a terminal, and Claude Code pre-installed. These platform deltas matter:
 
-| Delta                        | Why                                                                                                                                      |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run dev` is plain Vite  | v0 detects Vite and starts this script itself. Launching a Playwright browser on boot would break that detection and the preview.        |
-| Dev server serves plain HTTP | The sandbox proxy terminates TLS. `iwsdkDev({ https: false })` is the default here; set `IWSDK_DEV_HTTPS=1` for LAN headset testing.     |
-| `IWSDK_DEV_OPEN` defaults to `false` | Set in `vite.config.ts`. The managed browser is launched lazily by the first MCP/CLI command instead of at server start.        |
-| `allowedHosts: true`         | The preview is served through a generated sandbox hostname, not `localhost`.                                                             |
+| Delta | Why |
+| ----- | --- |
+| `npm run dev` attaches, never force-restarts | v0 re-runs `npm run dev` after every `npm ci` and at the end of agent turns, often while an earlier run is alive. A foreground restart killed the managed browser each time. |
+| Runtime is detached (`iwsdk dev up`) | It is not owned by any `npm run dev` process, so the platform killing one does not take Vite or the browser down. |
+| Headless managed browser | The sandbox has no display. `vite.config.ts` forces `IWSDK_DEV_HEADLESS=1` when `DISPLAY` is unset; `npm run dev` passes `--headless` too. |
+| `envDir: false` in `vite.config.ts` | v0 rewrites `.env.development.local` at the end of every turn; Vite restarts on env-file changes, which dropped the browser bridge. The app reads no `VITE_*` env vars — if you add some, define them in `vite.config.ts` instead. |
+| Dev server serves plain HTTP | The sandbox proxy terminates TLS. `iwsdkDev({ https: false })` is the default here; set `IWSDK_DEV_HTTPS=1` for LAN headset testing. |
+| `allowedHosts: true` | The preview is served through a generated sandbox hostname, not `localhost`. |
 
 WebXR needs a secure context. `http://localhost` qualifies, and so does the
 sandbox's HTTPS preview URL, so the IWER emulator works in the v0 preview. A real
 headset on the LAN does not — deploy, or run `IWSDK_DEV_HTTPS=1 npm run dev`.
 
-Before using any scene/ecs/ui/xr/browser tool in the sandbox, start the managed
-browser: `npm run dev:down` if a plain Vite server is already running, then
-`npx @iwsdk/cli dev up`. Playwright's Chromium download happens during
-`npm install`, so the first install in a fresh sandbox is slow.
+Before using any scene/ecs/ui/xr/browser tool in the sandbox, confirm the
+runtime with `npx @iwsdk/cli dev status` (`running`, `browserConnected` and
+`browserCommandReady` all `true`). If it is not running, `npm run dev` brings it
+up; do not restart a healthy runtime. The `predev` hook
+(`scripts/setup-browser-deps.mjs`) installs Chromium's system libraries and
+verifies Playwright's Chromium actually launches, reinstalling it if a partial
+download left a binary that segfaults.
 
 `vercel.json` pins `framework: vite`, `outputDirectory: dist`, and an SPA rewrite.
 Vercel checks the filesystem before rewrites, so files under `public/` still win

@@ -14,17 +14,28 @@
  * limitations under the License.
  */
 
-// `npm run dev` entry point. The v0 sandbox re-runs this script at the end of
-// every agent turn, often while the previous run is still alive. Calling
-// `iwsdk dev restart` here would kill the healthy managed browser each time,
-// so instead this script:
-//   1. attaches to a runtime that is already running, or starts one detached
-//      (`iwsdk dev up`) so it survives this npm process being killed;
-//   2. stays in the foreground, streaming the runtime log so the platform
-//      still sees output and a live process;
-//   3. relaunches the runtime if it ever exits.
-// Ctrl+C in an interactive terminal stops the runtime (`iwsdk dev down`);
-// platform signals (SIGTERM/SIGHUP) only detach and leave it running.
+// `npm run dev` entry point: a thin, idempotent supervisor for the IWSDK
+// runtime (Vite + headless managed browser).
+//
+// Why not just `iwsdk dev restart --foreground`? The v0 sandbox launches
+// `npm run dev` repeatedly — after every `npm ci`, at the end of agent turns —
+// often while an earlier run is still alive. A foreground restart kills the
+// healthy runtime and its managed browser every time. Instead:
+//
+//   * The runtime is started detached (`iwsdk dev up`), so it is not owned by
+//     any particular `npm run dev` process and survives it being killed.
+//   * Each launch attaches to a healthy runtime rather than replacing it. The
+//     runtime is only (re)started when it is missing, or when node_modules was
+//     reinstalled after it started (a server that lost its deps mid-flight).
+//   * Only the newest supervisor stays: older ones notice they were superseded
+//     and exit quietly, so supervisors never pile up.
+//   * The supervisor prints a Vite-style ready banner once the server answers
+//     HTTP, which is what the platform waits for, and then streams only new
+//     runtime log lines (never stale errors from an earlier session).
+//   * A watchdog relaunches the runtime if it ever dies.
+//
+// Ctrl+C in an interactive terminal stops the runtime (`iwsdk dev down`).
+// Platform signals (SIGTERM/SIGHUP) only detach and leave it running.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -34,9 +45,24 @@ const root = process.cwd();
 const runtimeDir = path.join(root, '.iwsdk', 'runtime');
 const sessionFile = path.join(runtimeDir, 'session.json');
 const logsDir = path.join(runtimeDir, 'logs');
+const supervisorFile = path.join(runtimeDir, 'dev-supervisor.json');
+const installMarker = path.join(root, 'node_modules', '.package-lock.json');
 const isWindows = process.platform === 'win32';
+
 const POLL_MS = 1000;
 const HEALTH_EVERY_POLLS = 5;
+const READY_TIMEOUT_MS = 120_000;
+const SUPERSEDE_SETTLE_MS = 750;
+
+const startedAt = Date.now();
+
+function log(message) {
+  process.stdout.write(`[dev] ${message}\n`);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function iwsdk(args, capture = false) {
   return spawnSync('iwsdk', args, {
@@ -47,21 +73,8 @@ function iwsdk(args, capture = false) {
   });
 }
 
-function log(message) {
-  process.stdout.write(`[dev] ${message}\n`);
-}
-
-function readSessionPid() {
-  try {
-    const session = JSON.parse(fs.readFileSync(sessionFile, 'utf8'));
-    return typeof session.pid === 'number' ? session.pid : null;
-  } catch {
-    return null;
-  }
-}
-
 function isAlive(pid) {
-  if (pid == null) return false;
+  if (typeof pid !== 'number') return false;
   try {
     process.kill(pid, 0);
     return true;
@@ -70,29 +83,130 @@ function isAlive(pid) {
   }
 }
 
-function runtimeIsRunning() {
-  const result = iwsdk(['dev', 'status'], true);
+function readJson(file) {
   try {
-    const parsed = JSON.parse(result.stdout);
-    return parsed?.data?.state?.running === true && isAlive(readSessionPid());
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {
-    return false;
+    return null;
   }
 }
 
+function mtimeMs(file) {
+  try {
+    return fs.statSync(file).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+// --- Single active supervisor (newest wins) ---------------------------------
+
+function claimSupervisor() {
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  fs.writeFileSync(
+    supervisorFile,
+    JSON.stringify({ pid: process.pid, startedAt }),
+  );
+}
+
+function isSuperseded() {
+  const owner = readJson(supervisorFile);
+  return (
+    owner != null &&
+    owner.pid !== process.pid &&
+    owner.startedAt >= startedAt &&
+    isAlive(owner.pid)
+  );
+}
+
+function exitIfSuperseded() {
+  if (!isSuperseded()) return;
+  log('A newer `npm run dev` took over supervision; exiting (runtime untouched).');
+  process.exit(0);
+}
+
+// --- Runtime health ----------------------------------------------------------
+
+function readStatus() {
+  const result = iwsdk(['dev', 'status'], true);
+  try {
+    return JSON.parse(result.stdout)?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function runtimeState() {
+  const status = readStatus();
+  const session = readJson(sessionFile);
+  const running =
+    status?.state?.running === true && isAlive(session?.pid ?? null);
+  if (!running) return { kind: 'missing', status };
+  // `npm ci` deletes and rebuilds node_modules. A runtime that was serving
+  // during that window has broken module resolution, so restart it once.
+  if (mtimeMs(installMarker) > mtimeMs(sessionFile)) {
+    return { kind: 'stale', status };
+  }
+  return { kind: 'healthy', status };
+}
+
 function ensureRuntime() {
-  if (runtimeIsRunning()) {
+  const state = runtimeState();
+  if (state.kind === 'healthy') {
     log('Attached to the running IWSDK runtime (managed browser left untouched).');
     return true;
   }
-  log('Starting the IWSDK runtime with a headless managed browser...');
-  const result = iwsdk(['dev', 'up', '--headless']);
+  const args =
+    state.kind === 'stale'
+      ? ['dev', 'restart', '--headless']
+      : ['dev', 'up', '--headless'];
+  log(
+    state.kind === 'stale'
+      ? 'node_modules was reinstalled after the runtime started; restarting it once...'
+      : 'Starting the IWSDK runtime with a headless managed browser...',
+  );
+  const result = iwsdk(args);
   if (result.status !== 0) {
-    log(`iwsdk dev up exited with code ${result.status}; will retry.`);
+    log(`iwsdk ${args.join(' ')} exited with code ${result.status}; will retry.`);
     return false;
   }
   return true;
 }
+
+async function waitForHttp(url) {
+  const deadline = Date.now() + READY_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      if (response.status < 500) return true;
+    } catch {}
+    await sleep(500);
+  }
+  return false;
+}
+
+function viteVersion() {
+  return (
+    readJson(path.join(root, 'node_modules', 'vite', 'package.json'))
+      ?.version ?? ''
+  );
+}
+
+function printReadyBanner(status) {
+  const local = status?.runtimeUrls?.local ?? 'http://localhost:5173/';
+  const network = status?.runtimeUrls?.network ?? [];
+  const lines = [
+    '',
+    `  VITE v${viteVersion()}  ready in ${Date.now() - startedAt} ms`,
+    '',
+    `  ➜  Local:   ${local}`,
+    ...network.map((url) => `  ➜  Network: ${url}`),
+    '',
+  ];
+  process.stdout.write(`${lines.join('\n')}\n`);
+}
+
+// --- Log streaming (new lines only) -----------------------------------------
 
 function newestLog() {
   try {
@@ -100,7 +214,7 @@ function newestLog() {
       .readdirSync(logsDir)
       .filter((name) => name.startsWith('dev-') && name.endsWith('.log'))
       .map((name) => path.join(logsDir, name));
-    files.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    files.sort((a, b) => mtimeMs(b) - mtimeMs(a));
     return files[0] ?? null;
   } catch {
     return null;
@@ -109,15 +223,24 @@ function newestLog() {
 
 const tail = { file: null, offset: 0 };
 
+function startTailAtEnd() {
+  tail.file = newestLog();
+  tail.offset = tail.file ? fs.statSync(tail.file).size : 0;
+}
+
 function pumpLog() {
   const file = newestLog();
   if (!file) return;
   if (file !== tail.file) {
-    const isFirstFile = tail.file === null;
     tail.file = file;
-    tail.offset = isFirstFile ? Math.max(0, fs.statSync(file).size - 4096) : 0;
+    tail.offset = 0;
   }
-  const size = fs.statSync(file).size;
+  let size;
+  try {
+    size = fs.statSync(file).size;
+  } catch {
+    return;
+  }
   if (size < tail.offset) tail.offset = 0;
   if (size === tail.offset) return;
   const fd = fs.openSync(file, 'r');
@@ -130,6 +253,8 @@ function pumpLog() {
     fs.closeSync(fd);
   }
 }
+
+// --- Signals -----------------------------------------------------------------
 
 let stopping = false;
 
@@ -149,16 +274,36 @@ for (const signal of ['SIGTERM', 'SIGHUP']) {
   });
 }
 
-ensureRuntime();
+// --- Main --------------------------------------------------------------------
+
+claimSupervisor();
+// Two launches can race; let the newest claim settle before touching the runtime.
+await sleep(SUPERSEDE_SETTLE_MS);
+exitIfSuperseded();
+
+startTailAtEnd();
+while (!ensureRuntime()) {
+  await sleep(3000);
+  exitIfSuperseded();
+}
+
+const status = readStatus();
+const localUrl = status?.runtimeUrls?.local ?? 'http://localhost:5173/';
+if (await waitForHttp(localUrl)) {
+  printReadyBanner(status);
+} else {
+  log(`Runtime did not answer at ${localUrl} within ${READY_TIMEOUT_MS / 1000}s; still watching.`);
+}
 
 let polls = 0;
 setInterval(() => {
   if (stopping) return;
+  exitIfSuperseded();
   pumpLog();
   polls += 1;
   if (polls % HEALTH_EVERY_POLLS !== 0) return;
-  if (!isAlive(readSessionPid()) && !runtimeIsRunning()) {
+  if (!isAlive(readJson(sessionFile)?.pid ?? null) && runtimeState().kind === 'missing') {
     log('IWSDK runtime is not running; relaunching.');
-    ensureRuntime();
+    if (ensureRuntime()) startTailAtEnd();
   }
 }, POLL_MS);

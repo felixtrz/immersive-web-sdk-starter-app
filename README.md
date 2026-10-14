@@ -44,22 +44,33 @@ result, then click **Enter XR** to start an emulated immersive session. You can
 start editing the scene by modifying `public/scenes/main.iwsdk.scene.json`, or
 the systems that drive it under `src/`. The page auto-updates as you edit.
 
-`npm run dev` is the IWSDK managed dev server (`iwsdk dev restart --foreground`),
-and the one script v0 starts on your behalf. It serves the app the way Vite does
-and additionally hosts the MCP command bridge behind the scene editor and the
-scene/ECS/XR tooling. There is no `--open`, so it does not launch the managed
-browser on boot — the first MCP or CLI command starts it lazily.
+`npm run dev` (`scripts/dev.mjs`) is the one script v0 starts on your behalf. It
+makes sure a single detached IWSDK runtime is running — Vite plus a headless
+managed browser that hosts the MCP command bridge behind the scene editor and
+the scene/ECS/XR tooling — then attaches to it and streams its logs. Running it
+again attaches instead of restarting, so the runtime survives the sandbox
+re-running the script. It restarts the runtime only if it is missing or
+`node_modules` was reinstalled since it started.
 
-A `predev` hook runs `scripts/setup-browser-deps.mjs` first. That script installs
-the system libraries managed Chromium needs inside the Fedora-based v0 sandbox,
-and exits immediately on every other platform.
+Because the runtime is detached, it keeps running after `npm run dev` exits.
+Ctrl+C in an interactive terminal stops it; otherwise use `npm run dev:down`.
 
-Two companion scripts drive that server's lifecycle:
+A `predev` hook runs `scripts/setup-browser-deps.mjs` first. It installs the
+system libraries managed Chromium needs inside the Fedora-based v0 sandbox and
+verifies that Playwright's Chromium launches, reinstalling it if an interrupted
+download left it broken.
+
+Companion scripts for the runtime's lifecycle:
 
 ```bash
 npm run dev:status
+npm run dev:restart   # deliberate restart, headless
 npm run dev:down
 ```
+
+`vite.config.ts` sets `envDir: false`, so `.env*` files are not loaded (v0
+rewrites `.env.development.local` every turn, which would otherwise restart
+Vite). Define any `VITE_*` values in `vite.config.ts` instead.
 
 For plain Vite with none of the managed infrastructure — the mode `vercel dev`
 expects — use the runtime-only script:
@@ -104,7 +115,8 @@ public/
   ui/*.uikitml                    runtime-loaded panels
   gltf/ audio/ textures/          static assets
 scripts/
-  setup-browser-deps.mjs          predev — managed-browser system libs for the v0 sandbox
+  dev.mjs                         `npm run dev` — idempotent supervisor for the detached runtime
+  setup-browser-deps.mjs          predev — managed-browser system libs + Chromium integrity check
 ```
 
 Composition lives in JSON; geometry, materials and URLs live in TypeScript. Scene
