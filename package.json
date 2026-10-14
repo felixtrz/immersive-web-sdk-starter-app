@@ -10,7 +10,8 @@
   },
   "scripts": {
     "predev": "node scripts/setup-browser-deps.mjs",
-    "dev": "iwsdk dev restart --foreground --headless",
+    "dev": "node scripts/dev.mjs",
+    "dev:restart": "iwsdk dev restart --headless",
     "dev:runtime": "vite",
     "dev:down": "iwsdk dev down",
     "dev:status": "iwsdk dev status",

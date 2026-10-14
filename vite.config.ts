@@ -69,6 +69,12 @@ export default defineConfig({
     esbuildOptions: { target: 'esnext' },
   },
   publicDir: 'public',
+  // The v0 sandbox rewrites .env.development.local at the end of every agent
+  // turn, and Vite restarts its server whenever a watched env file changes,
+  // which drops the managed browser bridge. The app reads no VITE_* variables
+  // from .env files (VITE_BASE_PATH below comes from process.env), so disable
+  // env-file loading and watching entirely.
+  envDir: false,
   // Absolute, not './': the SPA rewrite in vercel.json serves index.html for
   // deep paths, where a relative base resolves assets against the wrong
   // directory. Override with VITE_BASE_PATH when deploying under a subpath.
