@@ -22,28 +22,30 @@ World.create(
   document.getElementById('scene-container') as HTMLDivElement,
   projectOptions,
 ).then((world) => {
-  // Lower priority runs first: input -> phase -> integrate -> laps -> ghost -> presentation.
+  // Lower priority runs first. App systems stay above every IWSDK built-in
+  // (highest is XRLayerSystem at 1): input -> phase -> integrate -> laps ->
+  // ghost -> presentation.
   world
-    .registerSystem(KartInputSystem, { priority: -40 })
-    .registerSystem(RaceSystem, { priority: -35 })
-    .registerSystem(KartDriveSystem, { priority: -30 })
-    .registerSystem(LapSystem, { priority: -25 })
-    .registerSystem(GhostSystem, { priority: -20 })
-    .registerSystem(CockpitRigSystem, { priority: -15 })
-    .registerSystem(CameraModeSystem, { priority: -10 })
-    .registerSystem(EnvironmentSystem, { priority: -5 })
-    .registerSystem(KartFeelSystem, { priority: -8 })
-    .registerSystem(CrowdSystem)
-    .registerSystem(KartAudioSystem)
-    .registerSystem(DashboardSystem)
-    .registerSystem(HudSystem)
-    .registerSystem(HandVisibilitySystem, { priority: 10 });
+    .registerSystem(KartInputSystem, { priority: 10 })
+    .registerSystem(RaceSystem, { priority: 15 })
+    .registerSystem(KartDriveSystem, { priority: 20 })
+    .registerSystem(LapSystem, { priority: 25 })
+    .registerSystem(GhostSystem, { priority: 30 })
+    .registerSystem(CockpitRigSystem, { priority: 35 })
+    .registerSystem(CameraModeSystem, { priority: 40 })
+    .registerSystem(KartFeelSystem, { priority: 42 })
+    .registerSystem(EnvironmentSystem, { priority: 45 })
+    .registerSystem(CrowdSystem, { priority: 50 })
+    .registerSystem(KartAudioSystem, { priority: 55 })
+    .registerSystem(DashboardSystem, { priority: 60 })
+    .registerSystem(HudSystem, { priority: 65 })
+    .registerSystem(HandVisibilitySystem, { priority: 70 });
 
   const params = new URLSearchParams(location.search);
   if (params.has('autopilot')) {
-    world.registerSystem(AutopilotSystem, { priority: -38 });
+    world.registerSystem(AutopilotSystem, { priority: 12 });
   }
   if (params.has('capture')) {
-    world.registerSystem(CaptureProbeSystem);
+    world.registerSystem(CaptureProbeSystem, { priority: 90 });
   }
 });

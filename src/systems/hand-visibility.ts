@@ -6,8 +6,8 @@ import { createSystem, VisibilityState } from '@iwsdk/core';
  * XRInputManager writes `visual.model.visible = isPrimary` every frame inside
  * InputSystem (priority -4), which overrides toggleVisual(false). With the
  * visual disabled its bones stop updating, so the mesh reappeared as a frozen
- * hand. This system must be registered with a priority above -4 so it runs
- * after InputSystem and right before render.
+ * hand. This system must run after InputSystem, so it is registered last
+ * among the app systems, right before render.
  */
 export class HandVisibilitySystem extends createSystem({}) {
   init(): void {
