@@ -64,14 +64,14 @@
 
   .thr {
     width: 22px;
-    height: 0px;
+    height: 150px;
     border-radius: 6px;
     background-color: #f07a1a;
   }
 
   .brk {
     width: 22px;
-    height: 0px;
+    height: 150px;
     border-radius: 6px;
     background-color: #e8322b;
   }

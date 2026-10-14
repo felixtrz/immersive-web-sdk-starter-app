@@ -1,5 +1,6 @@
-import { createSystem, Entity, InstancedMesh, Object3D, Vector3 } from '@iwsdk/core';
+import { createSystem, InstancedMesh, Object3D, Vector3 } from '@iwsdk/core';
 import { Kart } from '../race-components.js';
+import { type EntityRef, trackSingle } from './query-refs.js';
 
 const EXCITE_RADIUS = 45;
 
@@ -18,6 +19,11 @@ export class CrowdSystem extends createSystem({
   private center = new Vector3();
   private time = 0;
   private excitement = 0;
+  private kartRef!: EntityRef;
+
+  init(): void {
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
+  }
 
   update(delta: number): void {
     if (!this.crowd && !this.findCrowd()) return;
@@ -28,7 +34,7 @@ export class CrowdSystem extends createSystem({
     const dt = Math.min(delta, 0.05);
     this.time += dt;
 
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
     let target = 0;
     if (kart?.object3D) {
       const d = Math.hypot(kart.object3D.position.x - this.center.x, kart.object3D.position.z - this.center.z);

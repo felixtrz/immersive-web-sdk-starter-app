@@ -31,7 +31,10 @@
     "features": {
       "locomotion": false,
       "grabbing": false,
-      "physics": true,
+      "physics": {
+        "updateFrequency": 90,
+        "interpolation": false
+      },
       "sceneUnderstanding": false,
       "environmentRaycast": false,
       "spatialUI": {

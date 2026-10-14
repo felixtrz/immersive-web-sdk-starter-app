@@ -1,4 +1,5 @@
-import { createSystem, Entity } from '@iwsdk/core';
+import { createSystem } from '@iwsdk/core';
+import { type EntityRef, trackSingle } from './query-refs.js';
 import { Kart, KartControls } from '../race-components.js';
 import { computeAutopilot } from '../sim/autopilot-driver.js';
 import { createKartState, type KartInput } from '../sim/kart-physics.js';
@@ -13,9 +14,14 @@ export class AutopilotSystem extends createSystem({
 }) {
   private state = createKartState();
   private out: KartInput = { throttle: 0, brake: 0, steer: 0 };
+  private kartRef!: EntityRef;
+
+  init(): void {
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
+  }
 
   update(): void {
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
     const obj = kart?.object3D;
     if (!kart || !obj) return;
     const s = this.state;

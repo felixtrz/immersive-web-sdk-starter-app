@@ -1,4 +1,5 @@
-import { createSystem, Entity, Object3D, Vector3, VisibilityState } from '@iwsdk/core';
+import { createSystem, Object3D, Vector3, VisibilityState } from '@iwsdk/core';
+import { type EntityRef, trackSingle } from './query-refs.js';
 import { Kart } from '../race-components.js';
 import { CURB_DRAG_FROM } from '../sim/kart-physics.js';
 import { lateralOffset, SAMPLE_COUNT, SAMPLE_X, SAMPLE_Z } from '../track.js';
@@ -42,7 +43,10 @@ export class CameraModeSystem extends createSystem({
   private driver: Object3D | null = null;
   private baseFov = 50;
 
+  private kartRef!: EntityRef;
+
   init(): void {
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
     this.baseFov = this.camera.fov;
     const requested = new URLSearchParams(location.search).get('cam');
     if (requested && (Object.values(CameraMode) as string[]).includes(requested)) {
@@ -62,7 +66,7 @@ export class CameraModeSystem extends createSystem({
   }
 
   update(delta: number): void {
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
     const obj = kart?.object3D;
     if (!kart || !obj) return;
     const immersive = this.world.visibilityState.peek() !== VisibilityState.NonImmersive;

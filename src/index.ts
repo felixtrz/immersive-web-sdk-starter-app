@@ -1,5 +1,6 @@
 import { World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
+import './systems/panel-ui-patch.js';
 import { AutopilotSystem } from './systems/autopilot.js';
 import { CameraModeSystem } from './systems/camera-mode.js';
 import { CaptureProbeSystem } from './systems/capture-probe.js';

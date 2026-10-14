@@ -1,5 +1,6 @@
-import { createSystem, Entity, InputComponent, Vector3, VisibilityState } from '@iwsdk/core';
+import { createSystem, InputComponent, Vector3, VisibilityState } from '@iwsdk/core';
 import { KartControls, SteeringWheel } from '../race-components.js';
+import { type EntityRef, trackSingle } from './query-refs.js';
 
 const KEY_STEER_RATE = 4;
 const WHEEL_RETURN_RATE = 5;
@@ -18,6 +19,10 @@ const PINCH_CLOSED = 0.02;
 const PINCH_OPEN = 0.035;
 const PINCH_DEADZONE = 0.1;
 
+type PoseFillingFrame = XRFrame & {
+  fillPoses?: (spaces: XRSpace[], baseSpace: XRSpace, transforms: Float32Array) => boolean;
+};
+
 /**
  * Keyboard / gamepad / XR -> KartControls.
  *
@@ -31,23 +36,42 @@ export class KartInputSystem extends createSystem({
   kart: { required: [KartControls] },
   wheel: { required: [SteeringWheel] },
 }) {
+  private kartRef!: EntityRef;
+  private wheelRef!: EntityRef;
   private keySteer = 0;
   private handSteer = 0;
   private leftPos = new Vector3();
   private rightPos = new Vector3();
   private pinch = { left: 0, right: 0 };
   private tracked = { left: false, right: false };
+  /** navigator.getGamepads() returns a fresh array per call, so only poll once a pad exists. */
+  private padsConnected = 0;
+  /** Reused thumb-tip / index-tip space pair and their 2x4x4 pose matrices for fillPoses. */
+  private readonly tipSpaces: XRSpace[] = [];
+  private readonly tipPoses = new Float32Array(32);
 
   init(): void {
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
+    this.wheelRef = trackSingle(this.queries.wheel, this.cleanupFuncs);
+
     // Hands still steer and pedal; their meshes would only clip through the wheel and dash.
     const hands = this.input.xr.visualAdapters.hand;
     hands.left.toggleVisual(false);
     hands.right.toggleVisual(false);
+
+    const onConnect = () => this.padsConnected++;
+    const onDisconnect = () => (this.padsConnected = Math.max(0, this.padsConnected - 1));
+    window.addEventListener('gamepadconnected', onConnect);
+    window.addEventListener('gamepaddisconnected', onDisconnect);
+    this.cleanupFuncs.push(
+      () => window.removeEventListener('gamepadconnected', onConnect),
+      () => window.removeEventListener('gamepaddisconnected', onDisconnect),
+    );
   }
 
   update(delta: number): void {
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
-    const wheel = this.queries.wheel.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
+    const wheel = this.wheelRef.current;
     if (!kart) return;
     const dt = Math.min(delta, 0.05);
     const kb = this.input.keyboard;
@@ -59,18 +83,20 @@ export class KartInputSystem extends createSystem({
       (kb.getKeyPressed('KeyA') || kb.getKeyPressed('ArrowLeft') ? 1 : 0);
     let steerTarget: number | null = null;
 
-    const pad = navigator.getGamepads?.()[0];
-    if (pad && pad.connected && pad.mapping === 'standard') {
-      throttle = Math.max(throttle, pad.buttons[7]?.value ?? 0);
-      brake = Math.max(brake, pad.buttons[6]?.value ?? 0);
-      const ax = pad.axes[0] ?? 0;
-      if (Math.abs(ax) > 0.12) steerTarget = ax;
+    const immersive = this.world.visibilityState.peek() !== VisibilityState.NonImmersive;
+    if (!immersive && this.padsConnected > 0) {
+      const pad = navigator.getGamepads()[0];
+      if (pad && pad.connected && pad.mapping === 'standard') {
+        throttle = Math.max(throttle, pad.buttons[7]?.value ?? 0);
+        brake = Math.max(brake, pad.buttons[6]?.value ?? 0);
+        const ax = pad.axes[0] ?? 0;
+        if (Math.abs(ax) > 0.12) steerTarget = ax;
+      }
     }
 
     const maxAngle = wheel ? wheel.getValue(SteeringWheel, 'maxAngle')! : 1.57;
     let handSteering = false;
 
-    const immersive = this.world.visibilityState.peek() !== VisibilityState.NonImmersive;
     if (immersive) {
       this.readXRSources();
       throttle = Math.max(throttle, this.pinch.right);
@@ -85,8 +111,8 @@ export class KartInputSystem extends createSystem({
         const dx = this.rightPos.x - this.leftPos.x;
         const dy = this.rightPos.y - this.leftPos.y;
         const dz = this.rightPos.z - this.leftPos.z;
-        const horizontal = Math.hypot(dx, dz);
-        if (Math.hypot(horizontal, dy) > MIN_HAND_SPAN) {
+        const horizontal = Math.sqrt(dx * dx + dz * dz);
+        if (horizontal * horizontal + dy * dy > MIN_HAND_SPAN * MIN_HAND_SPAN) {
           // Right hand dropping below the left = clockwise wheel = steer right.
           let roll = -Math.atan2(dy, horizontal);
           roll = Math.abs(roll) < HAND_DEADZONE ? 0 : roll - Math.sign(roll) * HAND_DEADZONE;
@@ -135,7 +161,7 @@ export class KartInputSystem extends createSystem({
     this.pinch.left = this.pinch.right = 0;
     const xr = this.world.renderer.xr;
     const session = xr.getSession();
-    const frame = xr.getFrame();
+    const frame = xr.getFrame() as PoseFillingFrame | null;
     const ref = xr.getReferenceSpace();
     if (!session || !frame || !ref) return;
     const sources = session.inputSources;
@@ -144,15 +170,9 @@ export class KartInputSystem extends createSystem({
       const side = src.handedness;
       if (side !== 'left' && side !== 'right') continue;
       if (src.hand) {
-        const thumb = src.hand.get('thumb-tip');
-        const index = src.hand.get('index-finger-tip');
-        const tp = thumb && frame.getJointPose?.(thumb, ref);
-        const ip = index && frame.getJointPose?.(index, ref);
-        if (!tp || !ip) continue;
+        const d = this.tipDistance(frame, src.hand, ref);
+        if (d < 0) continue;
         this.tracked[side] = true;
-        const a = tp.transform.position;
-        const b = ip.transform.position;
-        const d = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
         const v = 1 - (d - PINCH_CLOSED) / (PINCH_OPEN - PINCH_CLOSED);
         const pinch = v < PINCH_DEADZONE ? 0 : Math.min(1, (v - PINCH_DEADZONE) / (1 - PINCH_DEADZONE));
         this.pinch[side] = Math.max(this.pinch[side], pinch);
@@ -161,5 +181,31 @@ export class KartInputSystem extends createSystem({
         this.pinch[side] = Math.max(this.pinch[side], src.gamepad?.buttons[0]?.value ?? 0);
       }
     }
+  }
+
+  /**
+   * Thumb-tip to index-tip distance, or -1 when untracked. `fillPoses` writes into a
+   * reused buffer; `getJointPose` (fallback) allocates pose objects every call.
+   */
+  private tipDistance(frame: PoseFillingFrame, hand: XRHand, ref: XRReferenceSpace): number {
+    const thumb = hand.get('thumb-tip');
+    const index = hand.get('index-finger-tip');
+    if (!thumb || !index) return -1;
+    if (frame.fillPoses) {
+      this.tipSpaces[0] = thumb;
+      this.tipSpaces[1] = index;
+      if (!frame.fillPoses(this.tipSpaces, ref, this.tipPoses)) return -1;
+      const m = this.tipPoses;
+      const dx = m[12] - m[28];
+      const dy = m[13] - m[29];
+      const dz = m[14] - m[30];
+      return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+    const tp = frame.getJointPose?.(thumb, ref);
+    const ip = frame.getJointPose?.(index, ref);
+    if (!tp || !ip) return -1;
+    const a = tp.transform.position;
+    const b = ip.transform.position;
+    return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
   }
 }

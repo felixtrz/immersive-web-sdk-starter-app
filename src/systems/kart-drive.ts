@@ -1,6 +1,7 @@
 import { createSystem, Entity, PhysicsBody, PhysicsManipulation } from '@iwsdk/core';
 import { Cone, Kart, KartControls, RacePhase, RaceState } from '../race-components.js';
 import { createKartState, DriveMode, type KartInput, resetKartState, stepKart } from '../sim/kart-physics.js';
+import { type EntityRef, trackAll, trackSingle } from './query-refs.js';
 
 const CONE_RADIUS = 1.0;
 
@@ -14,22 +15,30 @@ export class KartDriveSystem extends createSystem({
   cones: { required: [Cone, PhysicsBody] },
 }) {
   private coneVel: [number, number, number] = [0, 0, 0];
+  /** Reused hit payload; addComponent copies the values into component storage. */
+  private readonly coneHit = { linearVelocity: this.coneVel };
   private state = createKartState();
   private controls: KartInput = { throttle: 0, brake: 0, steer: 0 };
+  private kartRef!: EntityRef;
+  private cones!: Entity[];
 
   init(): void {
-    this.queries.kart.subscribe(
-      'qualify',
-      (entity) => {
-        resetKartState(this.state);
-        this.writeBack(entity);
-      },
-      true,
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
+    this.cones = trackAll(this.queries.cones, this.cleanupFuncs);
+    this.cleanupFuncs.push(
+      this.queries.kart.subscribe(
+        'qualify',
+        (entity) => {
+          resetKartState(this.state);
+          this.writeBack(entity);
+        },
+        true,
+      ),
     );
   }
 
   update(delta: number): void {
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
     const obj = kart?.object3D;
     if (!kart || !obj) return;
 
@@ -51,7 +60,9 @@ export class KartDriveSystem extends createSystem({
       phase === RacePhase.Racing ? DriveMode.Racing : phase === RacePhase.Finished ? DriveMode.Finished : DriveMode.Locked;
     stepKart(s, this.controls, delta, mode, kart.getValue(Kart, 'maxSpeed')!);
 
-    for (const cone of this.queries.cones.entities) {
+    const cones = this.cones;
+    for (let i = 0; i < cones.length; i++) {
+      const cone = cones[i];
       const co = cone.object3D;
       if (!co || cone.hasComponent(PhysicsManipulation)) continue;
       const dx = co.position.x - s.x;
@@ -60,7 +71,7 @@ export class KartDriveSystem extends createSystem({
         this.coneVel[0] = s.vx * 1.2 + dx * 2;
         this.coneVel[1] = 3 + Math.hypot(s.vx, s.vz) * 0.15;
         this.coneVel[2] = s.vz * 1.2 + dz * 2;
-        cone.addComponent(PhysicsManipulation, { linearVelocity: this.coneVel });
+        cone.addComponent(PhysicsManipulation, this.coneHit);
         s.vx *= 0.95;
         s.vz *= 0.95;
         s.impact = Math.max(s.impact, 1.5);

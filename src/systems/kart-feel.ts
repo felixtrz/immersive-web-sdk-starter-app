@@ -2,6 +2,7 @@ import { createSystem, Entity, Euler, Object3D, Quaternion, Vector3 } from '@iws
 import { Dashboard, Kart, KartControls, SteeringWheel } from '../race-components.js';
 import { CURB_DRAG_FROM } from '../sim/kart-physics.js';
 import { lateralOffset } from '../track.js';
+import { type EntityRef, trackSingle } from './query-refs.js';
 
 const MAX_WHEEL_YAW = 0.45;
 const IMPACT_DECAY = 2.2;
@@ -11,7 +12,11 @@ const IMPACT_ROLL = 0.025;
 const CURB_RUMBLE = 0.004;
 const SPEED_BUZZ = 0.0012;
 
-type Mounted = { obj: Object3D; base: Vector3 };
+/** A cockpit part that rides on the sprung body; `base` is its rest position. */
+class Mount {
+  entity: Entity | undefined;
+  readonly base = new Vector3();
+}
 
 /**
  * Rolls and steers the wheels and shakes the sprung body (plus the dash and
@@ -23,19 +28,29 @@ export class KartFeelSystem extends createSystem({
   wheel: { required: [SteeringWheel] },
   dash: { required: [Dashboard] },
 }) {
+  private kartRef!: EntityRef;
+  private wheelRef!: EntityRef;
+  private dashRef!: EntityRef;
+  private readonly wheelMount = new Mount();
+  private readonly dashMount = new Mount();
   private body: Object3D | null = null;
   private steerPivots: Object3D[] = [];
   private spinPivots: Object3D[] = [];
-  private mounted = new Map<Entity, Mounted>();
+  private spinRadii: number[] = [];
   private shake = 0;
   private time = 0;
   private readonly offset = new Vector3();
   private readonly euler = new Euler();
   private readonly quat = new Quaternion();
-  private readonly tmp = new Vector3();
+
+  init(): void {
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
+    this.wheelRef = trackSingle(this.queries.wheel, this.cleanupFuncs);
+    this.dashRef = trackSingle(this.queries.dash, this.cleanupFuncs);
+  }
 
   update(delta: number): void {
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
     const obj = kart?.object3D;
     if (!kart || !obj) return;
     if (!this.body) this.bind(obj);
@@ -44,8 +59,9 @@ export class KartFeelSystem extends createSystem({
 
     const speed = kart.getValue(Kart, 'speed')!;
     const steer = kart.getValue(KartControls, 'steer')!;
-    for (const pivot of this.steerPivots) pivot.rotation.y = -steer * MAX_WHEEL_YAW;
-    for (const pivot of this.spinPivots) pivot.rotation.x -= (speed / (pivot.userData.radius as number)) * dt;
+    const yaw = -steer * MAX_WHEEL_YAW;
+    for (let i = 0; i < this.steerPivots.length; i++) this.steerPivots[i].rotation.y = yaw;
+    for (let i = 0; i < this.spinPivots.length; i++) this.spinPivots[i].rotation.x -= (speed / this.spinRadii[i]) * dt;
 
     const impact = kart.getValue(Kart, 'impact')!;
     if (impact > 0.5) this.shake = Math.min(1, Math.max(this.shake, impact / 4));
@@ -72,24 +88,28 @@ export class KartFeelSystem extends createSystem({
       this.body.position.copy(this.offset);
       this.body.quaternion.copy(this.quat);
     }
+    this.ride(this.wheelMount, this.wheelRef.current);
+    this.ride(this.dashMount, this.dashRef.current);
+  }
 
-    for (const entity of [...this.queries.wheel.entities, ...this.queries.dash.entities]) {
-      const o = entity.object3D;
-      if (!o) continue;
-      let m = this.mounted.get(entity);
-      if (!m) {
-        m = { obj: o, base: o.position.clone() };
-        this.mounted.set(entity, m);
-      }
-      o.position.copy(this.tmp.copy(m.base).applyQuaternion(this.quat).add(this.offset));
+  private ride(mount: Mount, entity: Entity | undefined): void {
+    const o = entity?.object3D;
+    if (!o) return;
+    if (mount.entity !== entity) {
+      mount.entity = entity;
+      mount.base.copy(o.position);
     }
+    o.position.copy(mount.base).applyQuaternion(this.quat).add(this.offset);
   }
 
   private bind(obj: Object3D): void {
     this.body = obj.getObjectByName('Body') ?? null;
     obj.traverse((child) => {
       if (child.name.startsWith('WheelSteer-F')) this.steerPivots.push(child);
-      if (child.name.startsWith('WheelSpin-')) this.spinPivots.push(child);
+      if (child.name.startsWith('WheelSpin-')) {
+        this.spinPivots.push(child);
+        this.spinRadii.push(child.userData.radius as number);
+      }
     });
   }
 }

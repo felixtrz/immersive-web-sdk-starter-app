@@ -10,15 +10,21 @@ export class CockpitRigSystem extends createSystem({
   kart: { required: [Kart] },
 }) {
   init(): void {
-    this.queries.kart.subscribe('qualify', (entity) => {
-      const obj = entity.object3D;
-      if (!obj) return;
-      obj.add(this.player);
-      this.player.position.set(0, 0, 0);
-      this.player.rotation.set(0, 0, 0);
-      this.applyMode(this.world.visibilityState.peek());
-    }, true);
-    this.cleanupFuncs.push(this.world.visibilityState.subscribe((state) => this.applyMode(state)));
+    this.cleanupFuncs.push(
+      this.queries.kart.subscribe(
+        'qualify',
+        (entity) => {
+          const obj = entity.object3D;
+          if (!obj) return;
+          obj.add(this.player);
+          this.player.position.set(0, 0, 0);
+          this.player.rotation.set(0, 0, 0);
+          this.applyMode(this.world.visibilityState.peek());
+        },
+        true,
+      ),
+      this.world.visibilityState.subscribe((state) => this.applyMode(state)),
+    );
   }
 
   private applyMode(state: VisibilityState): void {
