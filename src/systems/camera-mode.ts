@@ -1,4 +1,4 @@
-import { createSystem, Entity, Vector3, VisibilityState } from '@iwsdk/core';
+import { createSystem, Entity, Object3D, Vector3, VisibilityState } from '@iwsdk/core';
 import { Kart } from '../race-components.js';
 import { SAMPLE_COUNT, SAMPLE_X, SAMPLE_Z } from '../track.js';
 import { BROWSER_EYE } from './cockpit-rig.js';
@@ -18,6 +18,7 @@ const CHASE_FOLLOW_RATE = 7;
 const ORBIT_RADIUS = 4.2;
 const ORBIT_HEIGHT = 1.5;
 const ORBIT_RATE = 0.35;
+const SHAKE_AMPLITUDE = 0.12;
 
 /**
  * Browser-only camera framing. `C` toggles cockpit/chase; `?cam=orbit|overview`
@@ -35,8 +36,12 @@ export class CameraModeSystem extends createSystem({
   private readonly overviewTarget = new Vector3();
   private hasSmoothed = false;
   private orbitAngle = 0.6;
+  private shake = 0;
+  private driver: Object3D | null = null;
+  private baseFov = 50;
 
   init(): void {
+    this.baseFov = this.camera.fov;
     const requested = new URLSearchParams(location.search).get('cam');
     if (requested && (Object.values(CameraMode) as string[]).includes(requested)) {
       this.mode = requested as CameraMode;
@@ -55,10 +60,13 @@ export class CameraModeSystem extends createSystem({
   }
 
   update(delta: number): void {
-    if (this.world.visibilityState.peek() !== VisibilityState.NonImmersive) return;
     const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
     const obj = kart?.object3D;
     if (!kart || !obj) return;
+    const immersive = this.world.visibilityState.peek() !== VisibilityState.NonImmersive;
+    if (!this.driver) this.driver = obj.getObjectByName('Driver') ?? null;
+    if (this.driver) this.driver.visible = !immersive && this.mode !== CameraMode.Cockpit;
+    if (immersive) return;
 
     if (this.input.keyboard.getKeyDown('KeyC')) {
       const i = TOGGLE_ORDER.indexOf(this.mode);
@@ -66,10 +74,26 @@ export class CameraModeSystem extends createSystem({
       this.hasSmoothed = false;
     }
 
+    const impact = kart.getValue(Kart, 'impact')!;
+    if (impact > 0.5) this.shake = Math.min(1, Math.max(this.shake, impact / 4));
+    this.shake = Math.max(0, this.shake - delta * 3);
+    const jitter = this.shake * this.shake * SHAKE_AMPLITUDE;
+
     const cam = this.camera;
+    // Desktop-only speed cue; never altered in XR, where FOV changes cause discomfort.
+    const speedT = Math.min(1, Math.abs(kart.getValue(Kart, 'speed')!) / 25);
+    const fov = this.baseFov + speedT * speedT * 9;
+    if (Math.abs(cam.fov - fov) > 0.05) {
+      cam.fov = fov;
+      cam.updateProjectionMatrix();
+    }
     if (this.mode === CameraMode.Cockpit) {
-      cam.position.set(0, BROWSER_EYE.y, BROWSER_EYE.z);
-      cam.rotation.set(BROWSER_EYE.pitch, 0, 0);
+      cam.position.set(
+        (Math.random() - 0.5) * jitter,
+        BROWSER_EYE.y + (Math.random() - 0.5) * jitter,
+        BROWSER_EYE.z,
+      );
+      cam.rotation.set(BROWSER_EYE.pitch + (Math.random() - 0.5) * jitter, 0, (Math.random() - 0.5) * jitter);
       return;
     }
 

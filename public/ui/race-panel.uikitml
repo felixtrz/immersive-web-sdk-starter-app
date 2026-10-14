@@ -57,12 +57,13 @@
     padding-top: 16px;
   }
 </style>
-<Panel class="panel-root">
+<Panel id="panel-root" class="panel-root">
   <div class="content">
     <div class="title">Sunny Circuit</div>
     <Divider></Divider>
     <div class="line">W / Up: throttle · S / Down: brake</div>
     <div class="line">A D / Left Right: steer · R: restart</div>
+    <div class="line">C: switch camera (cockpit / chase)</div>
     <div class="line">VR: grab the wheel, right trigger gas, left trigger brake</div>
   </div>
   <div class="buttons">

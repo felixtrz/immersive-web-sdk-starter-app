@@ -5,7 +5,9 @@ import { CameraModeSystem } from './systems/camera-mode.js';
 import { CaptureProbeSystem } from './systems/capture-probe.js';
 import { CockpitRigSystem } from './systems/cockpit-rig.js';
 import { DashboardSystem } from './systems/dashboard.js';
+import { EnvironmentSystem } from './systems/environment.js';
 import { GhostSystem } from './systems/ghost.js';
+import { HudSystem } from './systems/hud.js';
 import { KartAudioSystem } from './systems/kart-audio.js';
 import { KartDriveSystem } from './systems/kart-drive.js';
 import { KartInputSystem } from './systems/kart-input.js';
@@ -25,8 +27,10 @@ World.create(
     .registerSystem(GhostSystem, { priority: -20 })
     .registerSystem(CockpitRigSystem, { priority: -15 })
     .registerSystem(CameraModeSystem, { priority: -10 })
+    .registerSystem(EnvironmentSystem, { priority: -5 })
     .registerSystem(KartAudioSystem)
-    .registerSystem(DashboardSystem);
+    .registerSystem(DashboardSystem)
+    .registerSystem(HudSystem);
 
   const params = new URLSearchParams(location.search);
   if (params.has('autopilot')) {

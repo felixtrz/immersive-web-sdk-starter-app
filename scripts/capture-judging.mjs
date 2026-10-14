@@ -80,6 +80,25 @@ errors.push(...(await session({ autopilot: '1' }, async ({ page, shot, state }) 
   await shot('09-chase-finished');
 })));
 
+const writeTelemetry = async () => {
+  const racing = telemetry.filter((s) => s?.phase === 'racing');
+  const last = telemetry.at(-1) ?? {};
+  const summary = {
+    finished: last.phase === 'finished',
+    lapTimes: last.laps ?? [],
+    bestLap: last.bestLap ?? null,
+    avgSpeedKmh: racing.length ? Math.round(racing.reduce((a, s) => a + s.speedKmh, 0) / racing.length) : 0,
+    maxSpeedKmh: Math.max(0, ...racing.map((s) => s.speedKmh)),
+    maxAbsLateralM: +Math.max(0, ...racing.map((s) => Math.abs(s.lateral ?? 0))).toFixed(2),
+    impactSamples: racing.filter((s) => s.impact > 0.05).length,
+    samples: telemetry.length,
+    consoleErrors: [...new Set(errors)].slice(0, 20),
+  };
+  await writeFile(path.join(OUT, 'telemetry.json'), JSON.stringify({ summary, samples: telemetry }, null, 2));
+  return summary;
+};
+await writeTelemetry();
+
 errors.push(...(await session({ cam: 'orbit' }, async ({ page, shot }) => {
   for (const name of ['10-kart-orbit-a', '11-kart-orbit-b', '12-kart-orbit-c']) {
     await shot(name);
@@ -93,18 +112,4 @@ errors.push(...(await session({ cam: 'overview' }, async ({ shot }) => {
 
 await browser.close();
 
-const racing = telemetry.filter((s) => s?.phase === 'racing');
-const last = telemetry.at(-1) ?? {};
-const summary = {
-  finished: last.phase === 'finished',
-  lapTimes: last.laps ?? [],
-  bestLap: last.bestLap ?? null,
-  avgSpeedKmh: racing.length ? Math.round(racing.reduce((a, s) => a + s.speedKmh, 0) / racing.length) : 0,
-  maxSpeedKmh: Math.max(0, ...racing.map((s) => s.speedKmh)),
-  maxAbsLateralM: +Math.max(0, ...racing.map((s) => Math.abs(s.lateral ?? 0))).toFixed(2),
-  impactSamples: racing.filter((s) => s.impact > 0.05).length,
-  samples: telemetry.length,
-  consoleErrors: [...new Set(errors)].slice(0, 20),
-};
-await writeFile(path.join(OUT, 'telemetry.json'), JSON.stringify({ summary, samples: telemetry }, null, 2));
-console.log(JSON.stringify(summary, null, 2));
+console.log(JSON.stringify(await writeTelemetry(), null, 2));

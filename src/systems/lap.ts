@@ -1,5 +1,6 @@
 import { createSystem, Entity } from '@iwsdk/core';
 import { Kart, RacePhase, RaceState } from '../race-components.js';
+import { MAX_STEP } from '../sim/kart-physics.js';
 import { createLapState, LapEvent, stepLap } from '../sim/lap-tracker.js';
 
 const LAP_FIELDS = ['lap1', 'lap2', 'lap3'] as const;
@@ -30,7 +31,8 @@ export class LapSystem extends createSystem({
     s.lapArmed = kart.getValue(RaceState, 'lapArmed')!;
     for (let i = 0; i < LAP_FIELDS.length; i++) s.laps[i] = kart.getValue(RaceState, LAP_FIELDS[i])!;
 
-    const event = stepLap(s, idx, delta);
+    // Same clamp as stepKart: on slow frames the timer must not run ahead of the kart.
+    const event = stepLap(s, idx, Math.min(delta, MAX_STEP));
 
     kart.setValue(RaceState, 'lapTime', s.lapTime);
     kart.setValue(RaceState, 'nextGate', s.nextGate);

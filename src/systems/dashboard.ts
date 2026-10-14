@@ -30,6 +30,8 @@ export class DashboardSystem extends createSystem({
       const el = dash?.getElementById<UIKit.Text>(id);
       if (el) this.text[id] = el;
     }
+    // The center HUD owns race-state messaging; the dash keeps gauges and start lights only.
+    dash?.getElementById<UIKit.Text>('status')?.setProperties({ display: 'none' });
     for (let i = 1; i <= 3; i++) {
       const el = dash?.getElementById<UIKit.Container>(`light-${i}`);
       if (el) this.lights.push(el);
@@ -75,7 +77,7 @@ export class DashboardSystem extends createSystem({
     this.set('lap', `${Math.min(kart.getValue(RaceState, 'lap')!, LAP_COUNT)}/${LAP_COUNT}`);
     this.set('time', fmt(phase === RacePhase.Finished ? last : kart.getValue(RaceState, 'lapTime')!));
     this.set('best', fmt(best));
-    this.set('delta', done > 1 && last >= 0 ? `${delta2 > 0 ? '+' : ''}${delta2.toFixed(2)}` : '+0.00');
+    this.set('delta', done > 1 && last >= 0 ? `${delta2 > 0 ? '+' : ''}${delta2.toFixed(2)}` : '—');
 
     let status: string;
     let lit = 0;
@@ -88,7 +90,7 @@ export class DashboardSystem extends createSystem({
     } else if (phase === RacePhase.Racing) {
       go = kart.getValue(RaceState, 'lapTime')! < 1.5 && done === 0;
       status = last >= 0 ? `Last ${fmt(last)}` : 'Go!';
-    } else status = `Finished · R to restart`;
+    } else status = 'Finished';
     this.set('status', status);
 
     this.lights.forEach((light, i) => {

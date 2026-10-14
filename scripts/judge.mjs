@@ -72,8 +72,10 @@ async function loadEvidence() {
   const images = await Promise.all(
     files.map(async (f) => ({ name: f, data: (await readFile(path.join(DIR, f))).toString('base64') })),
   );
-  const telemetry = JSON.parse(await readFile(path.join(DIR, 'telemetry.json'), 'utf8'));
-  const summary = { browserRun: telemetry.summary };
+  const summary = {};
+  try {
+    summary.browserRun = JSON.parse(await readFile(path.join(DIR, 'telemetry.json'), 'utf8')).summary;
+  } catch {}
   try {
     const sim = JSON.parse(await readFile(path.join(DIR, 'sim.json'), 'utf8'));
     summary.headlessSimSuite = sim.rows.map(({ scenario, result: { trace, ...r }, failures }) => ({ scenario, ...r, failures }));

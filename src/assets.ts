@@ -21,6 +21,16 @@ export default defineAssets({
     type: AssetType.UIKitML,
     name: 'Cockpit Dashboard',
   },
+  hud: {
+    url: publicAssetUrl('ui/hud.uikitml'),
+    type: AssetType.UIKitML,
+    name: 'Race HUD',
+  },
+  'hud-center': {
+    url: publicAssetUrl('ui/hud-center.uikitml'),
+    type: AssetType.UIKitML,
+    name: 'Race Messages',
+  },
   'race-panel': {
     url: publicAssetUrl('ui/race-panel.uikitml'),
     type: AssetType.UIKitML,
