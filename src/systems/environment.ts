@@ -2,7 +2,7 @@ import { createSystem, DirectionalLight, Entity, Fog, Mesh, MeshStandardMaterial
 import { Kart } from '../race-components.js';
 
 const FOG_COLOR = 0xb8d6ed;
-const SUN_OFFSET = { x: 40, y: 70, z: 30 } as const;
+const SUN_OFFSET = { x: 50, y: 38, z: 28 } as const;
 const SHADOW_EXTENT = 45;
 const SHADOW_PASSES_AT = [30, 180] as const;
 

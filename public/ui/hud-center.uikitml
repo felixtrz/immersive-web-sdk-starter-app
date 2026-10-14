@@ -132,6 +132,6 @@
       <div id="res-best" class="v">--</div>
     </div>
     <div class="rule"></div>
-    <div class="hint">Press R or Restart to race again</div>
+    <div class="hint">Press R (keyboard) or A (controller) to race again</div>
   </div>
 </div>

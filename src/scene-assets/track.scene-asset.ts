@@ -102,9 +102,9 @@ const root = new Group();
 root.name = 'Sunny Circuit';
 
 // Sun: CameraModeSystem's environment pass keeps its shadow frustum centered on the kart.
-const sun = new DirectionalLight(0xfff1d6, 2.6);
+const sun = new DirectionalLight(0xfff1d6, 3.2);
 sun.name = 'Sun';
-sun.position.set(40, 70, 30);
+sun.position.set(50, 38, 28);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -36;
@@ -156,7 +156,7 @@ root.add(sun, sun.target);
   for (let l = 0; l < lanes; l++) {
     const shades = Array.from({ length: SAMPLE_COUNT }, () => {
       const r = rand();
-      const k = r < 0.08 ? 0.82 : r > 0.94 ? 1.12 : 0.95 + rand() * 0.08;
+      const k = r < 0.06 ? 0.93 : r > 0.95 ? 1.05 : 0.97 + rand() * 0.05;
       return base.clone().multiplyScalar(k);
     });
     const inner = -TRACK_HALF_WIDTH + laneW * l;
@@ -406,8 +406,16 @@ root.add(sun, sun.target);
     post.position.set(TIERS * 1.4 - 0.2, 3.2, zz);
     stand.add(post);
   }
+  const backWall = new Mesh(new BoxGeometry(0.4, 6.4, STAND_LEN + 0.6), standMat);
+  backWall.position.set(TIERS * 1.4 - 0.5, 3.2, 0);
+  stand.add(backWall);
+  for (const zz of [-STAND_LEN / 2 - 0.1, STAND_LEN / 2 + 0.1]) {
+    const side = new Mesh(new BoxGeometry(TIERS * 1.4, 0.7 * TIERS + 0.3, 0.3), standMat);
+    side.position.set(TIERS * 0.7 - 0.7, (0.7 * TIERS + 0.3) / 2, zz);
+    stand.add(side);
+  }
   const crowdRand = seeded(23);
-  const crowdColors = [0xf07a1a, 0x2f6fde, 0xffd23f, 0xe8322b, 0x3fcf5a, 0xffffff].map((c) => new Color(c));
+  const crowdColors = [0x3b5b8c, 0xc8553d, 0xe2c792, 0x5d6d4a, 0xf2efe8, 0x34343c, 0xf07a1a].map((c) => new Color(c));
   const perTier = 22;
   const crowd = new InstancedMesh(
     new BoxGeometry(0.42, 0.62, 0.42),

@@ -1,6 +1,6 @@
 import { createSystem, Entity, UIKit, UIKitMLAsset } from '@iwsdk/core';
 import { Kart, RacePhase, RaceState } from '../race-components.js';
-import { LAP_COUNT } from '../track.js';
+import { LAP_COUNT, SAMPLE_COUNT } from '../track.js';
 
 const REFRESH = 1 / 20;
 const BAR_BG = 'rgba(18, 22, 29, 0.82)';
@@ -38,6 +38,43 @@ export class HudSystem extends createSystem({
   private elapsed = 0;
   private flash = 0;
   private bestAtStart = -1;
+  /** Lap time at each track sample for the current lap and the best lap: drives the live delta. */
+  private curSplits = new Float32Array(SAMPLE_COUNT).fill(-1);
+  private bestSplits = new Float32Array(SAMPLE_COUNT).fill(-1);
+  private splitLap = -1;
+  private liveDelta = Number.NaN;
+
+  private trackSplits(kart: Entity): void {
+    if (kart.getValue(RaceState, 'phase') !== RacePhase.Racing) {
+      this.splitLap = -1;
+      this.liveDelta = Number.NaN;
+      return;
+    }
+    const done = kart.getValue(RaceState, 'lapsCompleted')!;
+    if (done !== this.splitLap) {
+      if (this.splitLap >= 0 && done > this.splitLap) {
+        const last = kart.getValue(RaceState, 'lastLap')!;
+        const best = kart.getValue(RaceState, 'bestLap')!;
+        if (last >= 0 && last <= best + 1e-4) {
+          this.bestSplits.set(this.curSplits);
+          // Low frame rates (or fast-forward) skip samples; carry the last known split forward.
+          let prev = 0;
+          for (let i = 0; i < SAMPLE_COUNT; i++) {
+            if (this.bestSplits[i] < 0) this.bestSplits[i] = prev;
+            else prev = this.bestSplits[i];
+          }
+        }
+      }
+      this.curSplits.fill(-1);
+      this.splitLap = done;
+    }
+    const idx = kart.getValue(Kart, 'trackIdx')!;
+    if (idx < 0) return;
+    const t = kart.getValue(RaceState, 'lapTime')!;
+    this.curSplits[idx] = t;
+    const ref = this.bestSplits[idx];
+    this.liveDelta = ref >= 0 && t > 1 ? t - ref : Number.NaN;
+  }
 
   init(): void {
     const bar = this.world.getSceneObject<UIKitMLAsset>('hud');
@@ -58,6 +95,7 @@ export class HudSystem extends createSystem({
     const impact = kart.getValue(Kart, 'impact')!;
     if (impact > 0.5) this.flash = 0.35;
     this.flash = Math.max(0, this.flash - delta);
+    this.trackSplits(kart);
 
     this.elapsed += delta;
     if (this.elapsed < REFRESH) return;
@@ -83,9 +121,11 @@ export class HudSystem extends createSystem({
     this.set('hud-lap', `${Math.min(kart.getValue(RaceState, 'lap')!, LAP_COUNT)}/${LAP_COUNT}`);
     this.set('hud-time', fmt(finished ? last : racing ? lapTime : 0));
     this.set('hud-best', fmt(best));
-    const hasDelta = done > 1 && last >= 0;
-    this.set('hud-delta', hasDelta ? signed(d) : '--.--');
-    this.style('hud-delta', 'color', !hasDelta ? WHITE : d <= 0 ? GREEN : RED);
+    const live = racing && !Number.isNaN(this.liveDelta);
+    const shown = live ? this.liveDelta : d;
+    const hasDelta = live || (done > 1 && last >= 0);
+    this.set('hud-delta', hasDelta ? signed(shown) : '--.--');
+    this.style('hud-delta', 'color', !hasDelta ? WHITE : shown <= 0 ? GREEN : RED);
     this.set('hud-speed', String(kmh));
 
     let big = '';
@@ -99,10 +139,10 @@ export class HudSystem extends createSystem({
       big = String(Math.max(1, Math.ceil(kart.getValue(RaceState, 'countdown')!)));
       sub = 'Get ready';
       bigColor = AMBER;
-    } else if (racing && done === 0 && lapTime < 1.2) {
+    } else if (racing && done === 0 && lapTime < 0.8) {
       big = 'GO!';
       bigColor = GREEN;
-    } else if (racing && done > 0 && lapTime < 2.5) {
+    } else if (racing && done > 0 && lapTime < 1.8) {
       big = done === LAP_COUNT - 1 ? 'FINAL LAP' : `LAP ${done + 1}`;
       sub = done > 1 && last >= 0 ? `${fmt(last)}   ${signed(d)}` : fmt(last);
       bigColor = done === LAP_COUNT - 1 ? AMBER : WHITE;

@@ -1,4 +1,16 @@
-import { KART_LATERAL_LIMIT, lateralOffset, NORMAL_X, NORMAL_Z, nearestSample, SPAWN } from '../track.js';
+import {
+  KART_LATERAL_LIMIT,
+  lateralOffset,
+  NORMAL_X,
+  NORMAL_Z,
+  nearestSample,
+  SPAWN,
+  TRACK_HALF_WIDTH,
+} from '../track.js';
+
+/** Kart-centre offset where the outer wheels are on the kerb. */
+export const CURB_DRAG_FROM = TRACK_HALF_WIDTH - 0.6;
+export const CURB_DRAG = 0.45;
 
 /**
  * Pure arcade kart integrator, shared by KartDriveSystem (rendered game) and
@@ -102,6 +114,8 @@ export function stepKart(s: KartState, input: KartInput, dt: number, mode: Drive
   }
   fwd -= fwd * (throttle > 0 ? ROLL_DRAG * 0.2 : ROLL_DRAG) * dt;
   if (throttle === 0 && brake === 0) fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), COAST_DRAG * dt);
+  // Riding the kerbs costs speed, so running wide is a real mistake.
+  if (Math.abs(s.offset) > CURB_DRAG_FROM) fwd -= fwd * CURB_DRAG * dt;
 
   const speedFactor = Math.min(1, Math.abs(fwd) / 5) * (1 - 0.4 * Math.min(1, Math.abs(fwd) / maxSpeed));
   const yawRate = steer * MAX_YAW_RATE * speedFactor * Math.sign(fwd);

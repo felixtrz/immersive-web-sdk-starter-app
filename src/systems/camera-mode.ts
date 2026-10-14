@@ -1,6 +1,7 @@
 import { createSystem, Entity, Object3D, Vector3, VisibilityState } from '@iwsdk/core';
 import { Kart } from '../race-components.js';
-import { SAMPLE_COUNT, SAMPLE_X, SAMPLE_Z } from '../track.js';
+import { CURB_DRAG_FROM } from '../sim/kart-physics.js';
+import { lateralOffset, SAMPLE_COUNT, SAMPLE_X, SAMPLE_Z } from '../track.js';
 import { BROWSER_EYE } from './cockpit-rig.js';
 
 export const CameraMode = {
@@ -37,6 +38,7 @@ export class CameraModeSystem extends createSystem({
   private hasSmoothed = false;
   private orbitAngle = 0.6;
   private shake = 0;
+  private bobPhase = 0;
   private driver: Object3D | null = null;
   private baseFov = 50;
 
@@ -88,9 +90,14 @@ export class CameraModeSystem extends createSystem({
       cam.updateProjectionMatrix();
     }
     if (this.mode === CameraMode.Cockpit) {
+      this.bobPhase += Math.min(delta, 0.05) * (8 + speedT * 30);
+      const idx = kart.getValue(Kart, 'trackIdx')!;
+      const onCurb =
+        idx >= 0 && speedT > 0.15 && Math.abs(lateralOffset(idx, obj.position.x, obj.position.z)) > CURB_DRAG_FROM;
+      const bob = Math.sin(this.bobPhase) * 0.005 * speedT + (onCurb ? (Math.random() - 0.5) * 0.018 : 0);
       cam.position.set(
         (Math.random() - 0.5) * jitter,
-        BROWSER_EYE.y + (Math.random() - 0.5) * jitter,
+        BROWSER_EYE.y + bob + (Math.random() - 0.5) * jitter,
         BROWSER_EYE.z,
       );
       cam.rotation.set(BROWSER_EYE.pitch + (Math.random() - 0.5) * jitter, 0, (Math.random() - 0.5) * jitter);

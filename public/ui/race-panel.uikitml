@@ -62,7 +62,7 @@
     <div class="title">Sunny Circuit</div>
     <Divider></Divider>
     <div class="line">W / Up: throttle · S / Down: brake</div>
-    <div class="line">A D / Left Right: steer · R: restart</div>
+    <div class="line">Steer: A/D or arrow keys · Restart: R</div>
     <div class="line">C: switch camera (cockpit / chase)</div>
     <div class="line">VR: grab the wheel, right trigger gas, left trigger brake</div>
   </div>
