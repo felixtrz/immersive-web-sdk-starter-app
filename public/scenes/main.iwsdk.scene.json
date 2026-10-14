@@ -551,6 +551,267 @@
           ]
         }
       }
+    },
+    {
+      "id": "cone-11",
+      "name": "Cone 11",
+      "content": {
+        "type": "asset",
+        "asset": "cone"
+      },
+      "transform": {
+        "position": [
+          145.68,
+          0.28,
+          78.51
+        ]
+      },
+      "components": {
+        "Cone": {},
+        "PhysicsBody": {
+          "state": "DYNAMIC"
+        },
+        "PhysicsShape": {
+          "shape": "Box",
+          "dimensions": [
+            0.4,
+            0.55,
+            0.4
+          ]
+        }
+      }
+    },
+    {
+      "id": "cone-12",
+      "name": "Cone 12",
+      "content": {
+        "type": "asset",
+        "asset": "cone"
+      },
+      "transform": {
+        "position": [
+          82.5,
+          0.28,
+          -43.05
+        ]
+      },
+      "components": {
+        "Cone": {},
+        "PhysicsBody": {
+          "state": "DYNAMIC"
+        },
+        "PhysicsShape": {
+          "shape": "Box",
+          "dimensions": [
+            0.4,
+            0.55,
+            0.4
+          ]
+        }
+      }
+    },
+    {
+      "id": "cone-13",
+      "name": "Cone 13",
+      "content": {
+        "type": "asset",
+        "asset": "cone"
+      },
+      "transform": {
+        "position": [
+          0,
+          0.28,
+          -131.6
+        ]
+      },
+      "components": {
+        "Cone": {},
+        "PhysicsBody": {
+          "state": "DYNAMIC"
+        },
+        "PhysicsShape": {
+          "shape": "Box",
+          "dimensions": [
+            0.4,
+            0.55,
+            0.4
+          ]
+        }
+      }
+    },
+    {
+      "id": "cone-14",
+      "name": "Cone 14",
+      "content": {
+        "type": "asset",
+        "asset": "cone"
+      },
+      "transform": {
+        "position": [
+          126.68,
+          0.28,
+          -31.28
+        ]
+      },
+      "components": {
+        "Cone": {},
+        "PhysicsBody": {
+          "state": "DYNAMIC"
+        },
+        "PhysicsShape": {
+          "shape": "Box",
+          "dimensions": [
+            0.4,
+            0.55,
+            0.4
+          ]
+        }
+      }
+    },
+    {
+      "id": "cone-15",
+      "name": "Cone 15",
+      "content": {
+        "type": "asset",
+        "asset": "cone"
+      },
+      "transform": {
+        "position": [
+          115.88,
+          0.28,
+          -36.51
+        ]
+      },
+      "components": {
+        "Cone": {},
+        "PhysicsBody": {
+          "state": "DYNAMIC"
+        },
+        "PhysicsShape": {
+          "shape": "Box",
+          "dimensions": [
+            0.4,
+            0.55,
+            0.4
+          ]
+        }
+      }
+    },
+    {
+      "id": "cone-16",
+      "name": "Cone 16",
+      "content": {
+        "type": "asset",
+        "asset": "cone"
+      },
+      "transform": {
+        "position": [
+          104.19,
+          0.28,
+          -32.82
+        ]
+      },
+      "components": {
+        "Cone": {},
+        "PhysicsBody": {
+          "state": "DYNAMIC"
+        },
+        "PhysicsShape": {
+          "shape": "Box",
+          "dimensions": [
+            0.4,
+            0.55,
+            0.4
+          ]
+        }
+      }
+    },
+    {
+      "id": "cone-17",
+      "name": "Cone 17",
+      "content": {
+        "type": "asset",
+        "asset": "cone"
+      },
+      "transform": {
+        "position": [
+          -160.02,
+          0.28,
+          -58.28
+        ]
+      },
+      "components": {
+        "Cone": {},
+        "PhysicsBody": {
+          "state": "DYNAMIC"
+        },
+        "PhysicsShape": {
+          "shape": "Box",
+          "dimensions": [
+            0.4,
+            0.55,
+            0.4
+          ]
+        }
+      }
+    },
+    {
+      "id": "cone-18",
+      "name": "Cone 18",
+      "content": {
+        "type": "asset",
+        "asset": "cone"
+      },
+      "transform": {
+        "position": [
+          -168.56,
+          0.28,
+          -49.46
+        ]
+      },
+      "components": {
+        "Cone": {},
+        "PhysicsBody": {
+          "state": "DYNAMIC"
+        },
+        "PhysicsShape": {
+          "shape": "Box",
+          "dimensions": [
+            0.4,
+            0.55,
+            0.4
+          ]
+        }
+      }
+    },
+    {
+      "id": "cone-19",
+      "name": "Cone 19",
+      "content": {
+        "type": "asset",
+        "asset": "cone"
+      },
+      "transform": {
+        "position": [
+          -167.99,
+          0.28,
+          -37.23
+        ]
+      },
+      "components": {
+        "Cone": {},
+        "PhysicsBody": {
+          "state": "DYNAMIC"
+        },
+        "PhysicsShape": {
+          "shape": "Box",
+          "dimensions": [
+            0.4,
+            0.55,
+            0.4
+          ]
+        }
+      }
     }
   ]
 }

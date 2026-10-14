@@ -4,6 +4,7 @@ import { AutopilotSystem } from './systems/autopilot.js';
 import { CameraModeSystem } from './systems/camera-mode.js';
 import { CaptureProbeSystem } from './systems/capture-probe.js';
 import { CockpitRigSystem } from './systems/cockpit-rig.js';
+import { CrowdSystem } from './systems/crowd.js';
 import { DashboardSystem } from './systems/dashboard.js';
 import { EnvironmentSystem } from './systems/environment.js';
 import { GhostSystem } from './systems/ghost.js';
@@ -28,6 +29,7 @@ World.create(
     .registerSystem(CockpitRigSystem, { priority: -15 })
     .registerSystem(CameraModeSystem, { priority: -10 })
     .registerSystem(EnvironmentSystem, { priority: -5 })
+    .registerSystem(CrowdSystem)
     .registerSystem(KartAudioSystem)
     .registerSystem(DashboardSystem)
     .registerSystem(HudSystem);

@@ -3,23 +3,34 @@ import { KartControls, SteeringWheel } from '../race-components.js';
 
 const KEY_STEER_RATE = 4;
 const WHEEL_RETURN_RATE = 5;
-const GRAB_RADIUS = 0.35;
-const HANDS = ['left', 'right'] as const;
+/** Hand roll (radians) that maps to full steering lock. */
+const HAND_FULL_LOCK = 1.0;
+const HAND_DEADZONE = 0.04;
+const HAND_SMOOTHING = 18;
+const MIN_HAND_SPAN = 0.12;
+/** Thumb-to-index tip distance (m) for a fully closed / fully open pinch. */
+const PINCH_CLOSED = 0.012;
+const PINCH_OPEN = 0.07;
 
 /**
- * Keyboard / gamepad / XR triggers -> KartControls. In XR the wheel is steered by
- * squeezing near it and turning the hand around the hub; with two hands the
- * deltas are averaged. The wheel's visual angle always mirrors the steer value.
+ * Keyboard / gamepad / XR -> KartControls.
+ *
+ * In XR there is no grabbing: the steering angle is the roll of the line from
+ * the left grip to the right grip, so holding both hands (or controllers) up
+ * like an imaginary wheel and tilting them steers. Throttle is the right
+ * trigger or right-hand pinch, brake the left trigger or left-hand pinch,
+ * both analog. The wheel's visual angle always mirrors the steer value.
  */
 export class KartInputSystem extends createSystem({
   kart: { required: [KartControls] },
   wheel: { required: [SteeringWheel] },
 }) {
   private keySteer = 0;
-  private local = new Vector3();
-  private grabbing = { left: false, right: false };
-  private handStart = { left: 0, right: 0 };
-  private wheelStart = { left: 0, right: 0 };
+  private handSteer = 0;
+  private leftPos = new Vector3();
+  private rightPos = new Vector3();
+  private pinch = { left: 0, right: 0 };
+  private tracked = { left: false, right: false };
 
   update(delta: number): void {
     const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
@@ -43,68 +54,58 @@ export class KartInputSystem extends createSystem({
       if (Math.abs(ax) > 0.12) steerTarget = ax;
     }
 
-    const immersive = this.world.visibilityState.peek() !== VisibilityState.NonImmersive;
-    const left = this.input.xr.gamepads.left;
-    const right = this.input.xr.gamepads.right;
-    if (immersive) {
-      throttle = Math.max(throttle, right?.getButtonValue(InputComponent.Trigger) ?? 0);
-      brake = Math.max(brake, left?.getButtonValue(InputComponent.Trigger) ?? 0);
-      const stick = left?.getAxesValues(InputComponent.Thumbstick);
-      if (stick && Math.abs(stick.x) > 0.15) steerTarget = stick.x;
-    }
-
     const maxAngle = wheel ? wheel.getValue(SteeringWheel, 'maxAngle')! : 1.57;
-    let angle = wheel ? wheel.getValue(SteeringWheel, 'angle')! : 0;
-    let grabbed = false;
+    let handSteering = false;
 
-    if (immersive && wheel?.object3D) {
-      let sum = 0;
-      let count = 0;
-      for (const hand of HANDS) {
-        const gp = hand === 'left' ? left : right;
-        const squeeze = gp?.getButtonPressed(InputComponent.Squeeze) ?? false;
-        const handAngle = this.handAngle(wheel, hand, angle);
-        if (squeeze && !this.grabbing[hand] && handAngle !== null && this.local.length() < GRAB_RADIUS) {
-          this.grabbing[hand] = true;
-          this.handStart[hand] = handAngle;
-          this.wheelStart[hand] = angle;
-        } else if (!squeeze) {
-          this.grabbing[hand] = false;
+    const immersive = this.world.visibilityState.peek() !== VisibilityState.NonImmersive;
+    if (immersive) {
+      this.readXRSources();
+      throttle = Math.max(throttle, this.pinch.right);
+      brake = Math.max(brake, this.pinch.left);
+
+      const stick = this.input.xr.gamepads.left?.getAxesValues(InputComponent.Thumbstick);
+      if (stick && Math.abs(stick.x) > 0.15) {
+        steerTarget = stick.x;
+      } else if (this.tracked.left && this.tracked.right) {
+        this.player.gripSpaces.left.getWorldPosition(this.leftPos);
+        this.player.gripSpaces.right.getWorldPosition(this.rightPos);
+        const dx = this.rightPos.x - this.leftPos.x;
+        const dy = this.rightPos.y - this.leftPos.y;
+        const dz = this.rightPos.z - this.leftPos.z;
+        const horizontal = Math.hypot(dx, dz);
+        if (Math.hypot(horizontal, dy) > MIN_HAND_SPAN) {
+          // Right hand dropping below the left = clockwise wheel = steer right.
+          let roll = -Math.atan2(dy, horizontal);
+          roll = Math.abs(roll) < HAND_DEADZONE ? 0 : roll - Math.sign(roll) * HAND_DEADZONE;
+          const target = Math.max(-1, Math.min(1, roll / (HAND_FULL_LOCK - HAND_DEADZONE)));
+          this.handSteer += (target - this.handSteer) * Math.min(1, dt * HAND_SMOOTHING);
+          handSteering = true;
         }
-        if (this.grabbing[hand] && handAngle !== null) {
-          let d = handAngle - this.handStart[hand];
-          d = Math.atan2(Math.sin(d), Math.cos(d));
-          sum += this.wheelStart[hand] + d;
-          count++;
-        }
-      }
-      if (count > 0) {
-        grabbed = true;
-        angle = Math.max(-maxAngle, Math.min(maxAngle, sum / count));
       }
     }
 
     let steer: number;
-    if (grabbed) {
-      steer = -angle / maxAngle;
+    if (handSteering && steerTarget === null) {
+      steer = this.handSteer;
+      this.keySteer = steer;
+    } else if (steerTarget === null) {
+      const step = KEY_STEER_RATE * dt;
+      this.keySteer += Math.max(-step, Math.min(step, keyDir - this.keySteer));
+      if (keyDir === 0) this.keySteer *= Math.exp(-WHEEL_RETURN_RATE * dt);
+      steer = this.keySteer;
+      this.handSteer = steer;
     } else {
-      if (steerTarget === null) {
-        const target = keyDir;
-        const step = KEY_STEER_RATE * dt;
-        this.keySteer += Math.max(-step, Math.min(step, target - this.keySteer));
-        if (keyDir === 0) this.keySteer *= Math.exp(-WHEEL_RETURN_RATE * dt);
-        steer = this.keySteer;
-      } else {
-        this.keySteer = steerTarget;
-        steer = steerTarget;
-      }
-      angle = -steer * maxAngle;
+      this.keySteer = steerTarget;
+      this.handSteer = steerTarget;
+      steer = steerTarget;
     }
+    steer = Math.max(-1, Math.min(1, steer));
+    const angle = -steer * maxAngle;
 
     kart.setValue(KartControls, 'throttle', throttle);
     kart.setValue(KartControls, 'brake', brake);
-    kart.setValue(KartControls, 'steer', Math.max(-1, Math.min(1, steer)));
-    kart.setValue(KartControls, 'wheelGrabbed', grabbed);
+    kart.setValue(KartControls, 'steer', steer);
+    kart.setValue(KartControls, 'wheelGrabbed', handSteering);
 
     if (wheel?.object3D) {
       wheel.setValue(SteeringWheel, 'angle', angle);
@@ -112,14 +113,39 @@ export class KartInputSystem extends createSystem({
     }
   }
 
-  /** Hand angle around the hub in the wheel's un-rotated plane; sets this.local. */
-  private handAngle(wheel: Entity, hand: 'left' | 'right', currentAngle: number): number | null {
-    const grip = this.player.gripSpaces[hand];
-    if (!grip || !wheel.object3D) return null;
-    grip.getWorldPosition(this.local);
-    wheel.object3D.worldToLocal(this.local);
-    const a = Math.atan2(this.local.y, this.local.x) + currentAngle;
-    this.local.z = 0;
-    return a;
+  /**
+   * Per hand: whether a grip pose exists and the analog pinch value. Tracked
+   * hands measure thumb-to-index distance; controllers use the trigger.
+   */
+  private readXRSources(): void {
+    this.tracked.left = this.tracked.right = false;
+    this.pinch.left = this.pinch.right = 0;
+    const xr = this.world.renderer.xr;
+    const session = xr.getSession();
+    const frame = xr.getFrame();
+    const ref = xr.getReferenceSpace();
+    if (!session || !frame || !ref) return;
+    const sources = session.inputSources;
+    for (let i = 0; i < sources.length; i++) {
+      const src = sources[i];
+      const side = src.handedness;
+      if (side !== 'left' && side !== 'right') continue;
+      if (src.hand) {
+        const thumb = src.hand.get('thumb-tip');
+        const index = src.hand.get('index-finger-tip');
+        const tp = thumb && frame.getJointPose?.(thumb, ref);
+        const ip = index && frame.getJointPose?.(index, ref);
+        if (!tp || !ip) continue;
+        this.tracked[side] = true;
+        const a = tp.transform.position;
+        const b = ip.transform.position;
+        const d = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+        const v = 1 - (d - PINCH_CLOSED) / (PINCH_OPEN - PINCH_CLOSED);
+        this.pinch[side] = Math.max(this.pinch[side], v < 0.05 ? 0 : Math.min(1, v));
+      } else if (src.gripSpace || src.targetRaySpace) {
+        this.tracked[side] = true;
+        this.pinch[side] = Math.max(this.pinch[side], src.gamepad?.buttons[0]?.value ?? 0);
+      }
+    }
   }
 }
