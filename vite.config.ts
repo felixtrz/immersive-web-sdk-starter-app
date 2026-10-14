@@ -29,15 +29,16 @@ const devHttps = process.env.IWSDK_DEV_HTTPS === '1';
 // can still launch the managed browser lazily on their first command.
 process.env.IWSDK_DEV_OPEN ??= 'false';
 
-// The sandbox has no X server, so a headed Chromium segfaults on launch.
-// Run the managed browser headless whenever no display is available; a local
-// desktop (or an explicit IWSDK_DEV_HEADLESS=0) keeps the headed window.
+// The sandbox has no X server, so a headed Chromium exits on launch. The CLI
+// always exports IWSDK_DEV_HEADLESS=false unless `--headless` is passed, so a
+// default can't be used here: force headless whenever no display exists, since
+// a headed launch can never succeed there. Desktops keep the headed window.
 if (
   process.platform === 'linux' &&
   !process.env.DISPLAY &&
   !process.env.WAYLAND_DISPLAY
 ) {
-  process.env.IWSDK_DEV_HEADLESS ??= '1';
+  process.env.IWSDK_DEV_HEADLESS = '1';
 }
 
 const port = Number.parseInt(process.env.PORT ?? '', 10) || 5173;
