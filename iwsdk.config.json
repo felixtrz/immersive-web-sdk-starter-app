@@ -12,6 +12,7 @@
     "xr": {
       "mode": "vr",
       "offer": "always",
+      "referenceSpace": "local",
       "features": {
         "handTracking": true,
         "gazeTracking": true

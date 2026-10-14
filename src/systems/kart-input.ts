@@ -54,11 +54,6 @@ export class KartInputSystem extends createSystem({
     this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
     this.wheelRef = trackSingle(this.queries.wheel, this.cleanupFuncs);
 
-    // Hands still steer and pedal; their meshes would only clip through the wheel and dash.
-    const hands = this.input.xr.visualAdapters.hand;
-    hands.left.toggleVisual(false);
-    hands.right.toggleVisual(false);
-
     const onConnect = () => this.padsConnected++;
     const onDisconnect = () => (this.padsConnected = Math.max(0, this.padsConnected - 1));
     window.addEventListener('gamepadconnected', onConnect);

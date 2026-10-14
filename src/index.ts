@@ -9,6 +9,7 @@ import { CrowdSystem } from './systems/crowd.js';
 import { DashboardSystem } from './systems/dashboard.js';
 import { EnvironmentSystem } from './systems/environment.js';
 import { GhostSystem } from './systems/ghost.js';
+import { HandVisibilitySystem } from './systems/hand-visibility.js';
 import { HudSystem } from './systems/hud.js';
 import { KartAudioSystem } from './systems/kart-audio.js';
 import { KartDriveSystem } from './systems/kart-drive.js';
@@ -35,7 +36,8 @@ World.create(
     .registerSystem(CrowdSystem)
     .registerSystem(KartAudioSystem)
     .registerSystem(DashboardSystem)
-    .registerSystem(HudSystem);
+    .registerSystem(HudSystem)
+    .registerSystem(HandVisibilitySystem, { priority: 10 });
 
   const params = new URLSearchParams(location.search);
   if (params.has('autopilot')) {
