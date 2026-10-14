@@ -1,0 +1,79 @@
+<!--
+  Title / controls panel. Horizon kit components (Panel, Divider, Button...).
+  Ids are the contract with DashboardSystem: xr-button, restart-button.
+-->
+<style>
+  @font-face {
+    font-family: "DM Sans";
+    src: url("https://fonts.gstatic.com/s/dmsans/v17/rP2tp2ywxg089UriI5-g4vlH9VoD8CmcqZG40F9JadbnoEwAkJxhTg.ttf");
+    font-weight: 500;
+  }
+
+  @font-face {
+    font-family: "DM Sans";
+    src: url("https://fonts.gstatic.com/s/dmsans/v17/rP2tp2ywxg089UriI5-g4vlH9VoD8CmcqZG40F9JadbnoEwARZthTg.ttf");
+    font-weight: 700;
+  }
+
+  .panel-root {
+    flex-direction: column;
+    font-family: "DM Sans";
+    width: 320px;
+  }
+
+  .content {
+    flex-direction: column;
+    padding-top: 16px;
+    padding-left: 20px;
+    padding-right: 20px;
+    gap: 6px;
+  }
+
+  .title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #272727;
+  }
+
+  .title:dark {
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .line {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+    color: #4a4a4a;
+  }
+
+  .line:dark {
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .buttons {
+    flex-direction: row;
+    gap: 10px;
+    padding: 20px;
+    padding-top: 16px;
+  }
+</style>
+<Panel class="panel-root">
+  <div class="content">
+    <div class="title">Sunny Circuit</div>
+    <Divider></Divider>
+    <div class="line">W / Up: throttle · S / Down: brake</div>
+    <div class="line">A D / Left Right: steer · R: restart</div>
+    <div class="line">VR: grab the wheel, right trigger gas, left trigger brake</div>
+  </div>
+  <div class="buttons">
+    <Button id="xr-button">
+      <ButtonIcon>
+        <RectangleGoggles></RectangleGoggles>
+      </ButtonIcon>
+      <ButtonLabel>Enter VR</ButtonLabel>
+    </Button>
+    <Button id="restart-button" variant="secondary">
+      <ButtonLabel>Restart</ButtonLabel>
+    </Button>
+  </div>
+</Panel>

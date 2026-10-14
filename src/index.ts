@@ -1,30 +1,26 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
-import { ControllerInputSystem } from './input.js';
-import { PanelSystem } from './panel.js';
-import { RobotSystem } from './robot.js';
+import { CockpitRigSystem } from './systems/cockpit-rig.js';
+import { DashboardSystem } from './systems/dashboard.js';
+import { GhostSystem } from './systems/ghost.js';
+import { KartAudioSystem } from './systems/kart-audio.js';
+import { KartDriveSystem } from './systems/kart-drive.js';
+import { KartInputSystem } from './systems/kart-input.js';
+import { LapSystem } from './systems/lap.js';
+import { RaceSystem } from './systems/race.js';
 
 World.create(
   document.getElementById('scene-container') as HTMLDivElement,
   projectOptions,
 ).then((world) => {
-  world.registerSystem(RobotSystem);
-  world.registerSystem(PanelSystem);
-  world.registerSystem(ControllerInputSystem);
+  // Lower priority runs first: input -> phase -> integrate -> laps -> ghost -> presentation.
+  world
+    .registerSystem(KartInputSystem, { priority: -40 })
+    .registerSystem(RaceSystem, { priority: -35 })
+    .registerSystem(KartDriveSystem, { priority: -30 })
+    .registerSystem(LapSystem, { priority: -25 })
+    .registerSystem(GhostSystem, { priority: -20 })
+    .registerSystem(CockpitRigSystem, { priority: -15 })
+    .registerSystem(KartAudioSystem)
+    .registerSystem(DashboardSystem);
 });
