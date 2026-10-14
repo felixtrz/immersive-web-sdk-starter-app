@@ -5,7 +5,9 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 
 const BASE_URL = process.env.PROOF_URL ?? 'http://localhost:5173/';
-const round = process.argv[2] ?? 'round-1';
+const roundFlag = process.argv.indexOf('--round');
+const roundArg = roundFlag >= 0 ? process.argv[roundFlag + 1] : process.argv[2];
+const round = !roundArg ? 'round-1' : /^\d+$/.test(roundArg) ? `round-${roundArg}` : roundArg;
 const OUT = path.resolve('design/judging', round);
 const SIZE = { width: 1280, height: 720 };
 const RACE_TIMEOUT_MS = 240_000;
@@ -34,7 +36,10 @@ async function session(query, run) {
       await page.screenshot({ path: file, timeout: 90_000 });
     }
   };
-  const state = () => page.evaluate(() => window.__race());
+  const state = async () => {
+    await page.waitForFunction(() => typeof window.__race === 'function', null, { timeout: 60_000 });
+    return page.evaluate(() => window.__race());
+  };
   await run({ page, shot, state });
   await page.close();
   return errors;

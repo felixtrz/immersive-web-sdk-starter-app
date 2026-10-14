@@ -1,0 +1,97 @@
+{
+  "summary": {
+    "finished": true,
+    "lapTimes": [
+      45.64714813232422,
+      43.72734451293945,
+      43.733333587646484
+    ],
+    "bestLap": 43.72734451293945,
+    "avgSpeedKmh": 64,
+    "maxSpeedKmh": 82,
+    "maxAbsLateralM": 1.4,
+    "impactSamples": 0,
+    "samples": 4,
+    "consoleErrors": []
+  },
+  "samples": [
+    {
+      "label": "racing",
+      "t": 51.6,
+      "phase": "racing",
+      "speedKmh": 40,
+      "lap": 1,
+      "lapsCompleted": 0,
+      "lapTime": 1.1557000875473022,
+      "laps": [
+        -1,
+        -1,
+        -1
+      ],
+      "bestLap": -1,
+      "trackIdx": 20,
+      "lateral": -1.399339593353991,
+      "slip": 0.05350233241915703,
+      "impact": 0,
+      "cameraMode": "cockpit"
+    },
+    {
+      "label": "chase",
+      "t": 112.3,
+      "phase": "racing",
+      "speedKmh": 70,
+      "lap": 1,
+      "lapsCompleted": 0,
+      "lapTime": 3.317298412322998,
+      "laps": [
+        -1,
+        -1,
+        -1
+      ],
+      "bestLap": -1,
+      "trackIdx": 28,
+      "lateral": -0.10414888765213703,
+      "slip": 0.02634628675878048,
+      "impact": 0,
+      "cameraMode": "chase"
+    },
+    {
+      "label": "ff-to-lap-2",
+      "phase": "racing",
+      "speedKmh": 82,
+      "lap": 2,
+      "lapsCompleted": 1,
+      "lapTime": 0,
+      "laps": [
+        45.64714813232422,
+        -1,
+        -1
+      ],
+      "bestLap": 45.64714813232422,
+      "trackIdx": 20,
+      "lateral": -0.03407772733395831,
+      "slip": 0.06312612444162369,
+      "impact": 0,
+      "cameraMode": "chase"
+    },
+    {
+      "label": "ff-to-finish",
+      "phase": "finished",
+      "speedKmh": 82,
+      "lap": 3,
+      "lapsCompleted": 3,
+      "lapTime": 0,
+      "laps": [
+        45.64714813232422,
+        43.72734451293945,
+        43.733333587646484
+      ],
+      "bestLap": 43.72734451293945,
+      "trackIdx": 20,
+      "lateral": -0.033590504513017594,
+      "slip": 0.01627301424741745,
+      "impact": 0,
+      "cameraMode": "chase"
+    }
+  ]
+}

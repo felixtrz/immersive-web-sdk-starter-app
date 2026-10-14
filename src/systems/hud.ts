@@ -22,7 +22,7 @@ function fmt(t: number): string {
 }
 
 function signed(d: number): string {
-  return `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d).toFixed(2)}`;
+  return `${d < 0 ? '-' : '+'}${Math.abs(d).toFixed(2)}`;
 }
 
 /**
@@ -84,7 +84,7 @@ export class HudSystem extends createSystem({
     this.set('hud-time', fmt(finished ? last : racing ? lapTime : 0));
     this.set('hud-best', fmt(best));
     const hasDelta = done > 1 && last >= 0;
-    this.set('hud-delta', hasDelta ? signed(d) : '—');
+    this.set('hud-delta', hasDelta ? signed(d) : '--.--');
     this.style('hud-delta', 'color', !hasDelta ? WHITE : d <= 0 ? GREEN : RED);
     this.set('hud-speed', String(kmh));
 

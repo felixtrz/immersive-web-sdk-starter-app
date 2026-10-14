@@ -77,7 +77,7 @@ export class DashboardSystem extends createSystem({
     this.set('lap', `${Math.min(kart.getValue(RaceState, 'lap')!, LAP_COUNT)}/${LAP_COUNT}`);
     this.set('time', fmt(phase === RacePhase.Finished ? last : kart.getValue(RaceState, 'lapTime')!));
     this.set('best', fmt(best));
-    this.set('delta', done > 1 && last >= 0 ? `${delta2 > 0 ? '+' : ''}${delta2.toFixed(2)}` : '—');
+    this.set('delta', done > 1 && last >= 0 ? `${delta2 > 0 ? '+' : ''}${delta2.toFixed(2)}` : '--.--');
 
     let status: string;
     let lit = 0;
