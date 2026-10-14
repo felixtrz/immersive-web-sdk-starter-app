@@ -1,0 +1,275 @@
+{
+  "generatedAt": "2026-10-14T18:06:53.730Z",
+  "rows": [
+    {
+      "scenario": "autopilot @90Hz",
+      "result": {
+        "driver": "autopilot",
+        "finished": true,
+        "lapsCompleted": 3,
+        "laps": [
+          45.844,
+          43.878,
+          43.878
+        ],
+        "bestLap": 43.878,
+        "totalRaceTime": 133.6,
+        "simulatedTime": 136.611,
+        "steps": 12295,
+        "wallMs": 105.367,
+        "speedup": 1297,
+        "topSpeedKmh": 82.101,
+        "avgSpeedKmh": 79.49,
+        "wallHits": 0,
+        "hardestHit": 0,
+        "offAsphaltRatio": 0.005,
+        "maxAbsOffset": 5.613,
+        "maxIndexJump": 4,
+        "gateEvents": 13,
+        "nonFinite": false,
+        "trace": []
+      },
+      "failures": []
+    },
+    {
+      "scenario": "autopilot @72Hz",
+      "result": {
+        "driver": "autopilot",
+        "finished": true,
+        "lapsCompleted": 3,
+        "laps": [
+          45.847,
+          43.875,
+          43.875
+        ],
+        "bestLap": 43.875,
+        "totalRaceTime": 133.597,
+        "simulatedTime": 136.611,
+        "steps": 9836,
+        "wallMs": 87.168,
+        "speedup": 1567,
+        "topSpeedKmh": 82.1,
+        "avgSpeedKmh": 79.493,
+        "wallHits": 0,
+        "hardestHit": 0,
+        "offAsphaltRatio": 0.005,
+        "maxAbsOffset": 5.634,
+        "maxIndexJump": 5,
+        "gateEvents": 13,
+        "nonFinite": false,
+        "trace": []
+      },
+      "failures": []
+    },
+    {
+      "scenario": "autopilot @20Hz (frame clamp)",
+      "result": {
+        "driver": "autopilot",
+        "finished": true,
+        "lapsCompleted": 3,
+        "laps": [
+          45.8,
+          43.9,
+          43.85
+        ],
+        "bestLap": 43.85,
+        "totalRaceTime": 133.55,
+        "simulatedTime": 136.6,
+        "steps": 2732,
+        "wallMs": 112.779,
+        "speedup": 1211,
+        "topSpeedKmh": 82.087,
+        "avgSpeedKmh": 79.494,
+        "wallHits": 0,
+        "hardestHit": 0,
+        "offAsphaltRatio": 0.005,
+        "maxAbsOffset": 5.643,
+        "maxIndexJump": 7,
+        "gateEvents": 13,
+        "nonFinite": false,
+        "trace": []
+      },
+      "failures": []
+    },
+    {
+      "scenario": "autopilot aggressive",
+      "result": {
+        "driver": "autopilot",
+        "finished": true,
+        "lapsCompleted": 3,
+        "laps": [
+          45.456,
+          43.489,
+          43.489
+        ],
+        "bestLap": 43.489,
+        "totalRaceTime": 132.433,
+        "simulatedTime": 135.444,
+        "steps": 12190,
+        "wallMs": 145.092,
+        "speedup": 934,
+        "topSpeedKmh": 82.101,
+        "avgSpeedKmh": 80.002,
+        "wallHits": 0,
+        "hardestHit": 0,
+        "offAsphaltRatio": 0.005,
+        "maxAbsOffset": 5.736,
+        "maxIndexJump": 5,
+        "gateEvents": 13,
+        "nonFinite": false,
+        "trace": []
+      },
+      "failures": []
+    },
+    {
+      "scenario": "flat-out no steering",
+      "result": {
+        "driver": "constant",
+        "finished": false,
+        "lapsCompleted": 0,
+        "laps": [
+          -1,
+          -1,
+          -1
+        ],
+        "bestLap": -1,
+        "totalRaceTime": 87,
+        "simulatedTime": 90.011,
+        "steps": 8101,
+        "wallMs": 81.141,
+        "speedup": 1109,
+        "topSpeedKmh": 80.362,
+        "avgSpeedKmh": 6.247,
+        "wallHits": 2,
+        "hardestHit": 5.693,
+        "offAsphaltRatio": 0.921,
+        "maxAbsOffset": 5.75,
+        "maxIndexJump": 1,
+        "gateEvents": 1,
+        "nonFinite": false,
+        "trace": []
+      },
+      "failures": []
+    },
+    {
+      "scenario": "full lock circles",
+      "result": {
+        "driver": "constant",
+        "finished": false,
+        "lapsCompleted": 0,
+        "laps": [
+          -1,
+          -1,
+          -1
+        ],
+        "bestLap": -1,
+        "totalRaceTime": 56.989,
+        "simulatedTime": 60,
+        "steps": 5400,
+        "wallMs": 103.537,
+        "speedup": 580,
+        "topSpeedKmh": 59.183,
+        "avgSpeedKmh": 7.6,
+        "wallHits": 11,
+        "hardestHit": 16.092,
+        "offAsphaltRatio": 0.866,
+        "maxAbsOffset": 5.75,
+        "maxIndexJump": 1,
+        "gateEvents": 1,
+        "nonFinite": false,
+        "trace": []
+      },
+      "failures": []
+    },
+    {
+      "scenario": "reverse into wall",
+      "result": {
+        "driver": "constant",
+        "finished": false,
+        "lapsCompleted": 0,
+        "laps": [
+          -1,
+          -1,
+          -1
+        ],
+        "bestLap": -1,
+        "totalRaceTime": 36.989,
+        "simulatedTime": 40,
+        "steps": 3600,
+        "wallMs": 82.1,
+        "speedup": 487,
+        "topSpeedKmh": 21.54,
+        "avgSpeedKmh": 1.345,
+        "wallHits": 2,
+        "hardestHit": 5.792,
+        "offAsphaltRatio": 0.928,
+        "maxAbsOffset": 5.75,
+        "maxIndexJump": 1,
+        "gateEvents": 0,
+        "nonFinite": false,
+        "trace": []
+      },
+      "failures": []
+    },
+    {
+      "scenario": "wrong-way laps",
+      "result": {
+        "driver": "wrong-way",
+        "finished": false,
+        "lapsCompleted": 0,
+        "laps": [
+          -1,
+          -1,
+          -1
+        ],
+        "bestLap": -1,
+        "totalRaceTime": 236.989,
+        "simulatedTime": 240,
+        "steps": 21600,
+        "wallMs": 219.178,
+        "speedup": 1095,
+        "topSpeedKmh": 82.101,
+        "avgSpeedKmh": 80.039,
+        "wallHits": 0,
+        "hardestHit": 0,
+        "offAsphaltRatio": 0.002,
+        "maxAbsOffset": 5.213,
+        "maxIndexJump": 3,
+        "gateEvents": 0,
+        "nonFinite": false,
+        "trace": []
+      },
+      "failures": []
+    },
+    {
+      "scenario": "teleport shortcut",
+      "result": {
+        "driver": "teleport-cheat",
+        "finished": true,
+        "lapsCompleted": 3,
+        "laps": [
+          96.644,
+          43.878,
+          43.878
+        ],
+        "bestLap": 43.878,
+        "totalRaceTime": 184.4,
+        "simulatedTime": 187.411,
+        "steps": 16867,
+        "wallMs": 195.414,
+        "speedup": 959,
+        "topSpeedKmh": 82.101,
+        "avgSpeedKmh": 70.104,
+        "wallHits": 2,
+        "hardestHit": 15.848,
+        "offAsphaltRatio": 0.121,
+        "maxAbsOffset": 5.75,
+        "maxIndexJump": 4,
+        "gateEvents": 13,
+        "nonFinite": false,
+        "trace": []
+      },
+      "failures": []
+    }
+  ]
+}

@@ -21,19 +21,17 @@
       "canvasPointerEvents": true
     },
     "render": {
-      "near": 0.001,
-      "far": 200,
+      "near": 0.02,
+      "far": 600,
       "camera": {
-        "position": [-4, 1.5, -6],
-        "lookAt": [0, 1.1, -1.8]
+        "position": [-12, 4, 108],
+        "lookAt": [-30, 1, 108]
       }
     },
     "features": {
-      "locomotion": {
-        "useWorker": true
-      },
-      "grabbing": true,
-      "physics": false,
+      "locomotion": false,
+      "grabbing": false,
+      "physics": true,
       "sceneUnderstanding": false,
       "environmentRaycast": false,
       "spatialUI": {

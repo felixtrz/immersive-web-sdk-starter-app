@@ -1,0 +1,137 @@
+<!--
+  Centered race messages (countdown, GO, lap banners) and the finish results card.
+  Ids are the contract with HudSystem: msg, msg-big, msg-sub, results, res-total,
+  res-l1, res-l2, res-l3, res-best, res-badge.
+-->
+<style>
+  @font-face {
+    font-family: "DM Sans";
+    src: url("https://fonts.gstatic.com/s/dmsans/v17/rP2tp2ywxg089UriI5-g4vlH9VoD8CmcqZG40F9JadbnoEwAkJxhTg.ttf");
+    font-weight: 500;
+  }
+
+  @font-face {
+    font-family: "DM Sans";
+    src: url("https://fonts.gstatic.com/s/dmsans/v17/rP2tp2ywxg089UriI5-g4vlH9VoD8CmcqZG40F9JadbnoEwARZthTg.ttf");
+    font-weight: 700;
+  }
+
+  .root {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 560px;
+    height: 380px;
+    font-family: "DM Sans";
+  }
+
+  .msg {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 18px;
+    padding-left: 34px;
+    padding-right: 34px;
+    border-radius: 24px;
+    background-color: rgba(18, 22, 29, 0.72);
+  }
+
+  .big {
+    font-size: 96px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .sub {
+    font-size: 22px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .card {
+    flex-direction: column;
+    width: 420px;
+    padding: 26px;
+    gap: 10px;
+    border-radius: 24px;
+    background-color: rgba(18, 22, 29, 0.9);
+  }
+
+  .card-title {
+    font-size: 30px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .badge {
+    font-size: 14px;
+    font-weight: 700;
+    color: #3fcf5a;
+  }
+
+  .row {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .k {
+    font-size: 18px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .v {
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .total {
+    font-size: 40px;
+    font-weight: 700;
+    color: #f07a1a;
+  }
+
+  .rule {
+    height: 2px;
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .hint {
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.7);
+  }
+</style>
+<div class="root">
+  <div id="msg" class="msg">
+    <div id="msg-big" class="big">3</div>
+    <div id="msg-sub" class="sub">Get ready</div>
+  </div>
+  <div id="results" class="card">
+    <div class="row">
+      <div class="card-title">Race complete</div>
+      <div id="res-badge" class="badge">NEW BEST</div>
+    </div>
+    <div id="res-total" class="total">0:00.00</div>
+    <div class="rule"></div>
+    <div class="row">
+      <div class="k">Lap 1</div>
+      <div id="res-l1" class="v">--</div>
+    </div>
+    <div class="row">
+      <div class="k">Lap 2</div>
+      <div id="res-l2" class="v">--</div>
+    </div>
+    <div class="row">
+      <div class="k">Lap 3</div>
+      <div id="res-l3" class="v">--</div>
+    </div>
+    <div class="row">
+      <div class="k">Best lap</div>
+      <div id="res-best" class="v">--</div>
+    </div>
+    <div class="rule"></div>
+    <div class="hint">Press R (keyboard) or A (controller) to race again</div>
+  </div>
+</div>

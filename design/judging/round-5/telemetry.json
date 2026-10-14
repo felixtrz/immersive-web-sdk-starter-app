@@ -1,0 +1,97 @@
+{
+  "summary": {
+    "finished": true,
+    "lapTimes": [
+      45.81549072265625,
+      43.87451171875,
+      43.877777099609375
+    ],
+    "bestLap": 43.87451171875,
+    "avgSpeedKmh": 67,
+    "maxSpeedKmh": 82,
+    "maxAbsLateralM": 1.04,
+    "impactSamples": 0,
+    "samples": 4,
+    "consoleErrors": []
+  },
+  "samples": [
+    {
+      "label": "racing",
+      "t": 39.6,
+      "phase": "racing",
+      "speedKmh": 46,
+      "lap": 1,
+      "lapsCompleted": 0,
+      "lapTime": 1.4404997825622559,
+      "laps": [
+        -1,
+        -1,
+        -1
+      ],
+      "bestLap": -1,
+      "trackIdx": 21,
+      "lateral": -1.0360691754949602,
+      "slip": 0.06342394649982452,
+      "impact": 0,
+      "cameraMode": "cockpit"
+    },
+    {
+      "label": "chase",
+      "t": 96.6,
+      "phase": "racing",
+      "speedKmh": 72,
+      "lap": 1,
+      "lapsCompleted": 0,
+      "lapTime": 3.6034979820251465,
+      "laps": [
+        -1,
+        -1,
+        -1
+      ],
+      "bestLap": -1,
+      "trackIdx": 29,
+      "lateral": -0.08551905957995132,
+      "slip": 0.024081822484731674,
+      "impact": 0,
+      "cameraMode": "chase"
+    },
+    {
+      "label": "ff-to-lap-2",
+      "phase": "racing",
+      "speedKmh": 82,
+      "lap": 2,
+      "lapsCompleted": 1,
+      "lapTime": 0,
+      "laps": [
+        45.81549072265625,
+        -1,
+        -1
+      ],
+      "bestLap": 45.81549072265625,
+      "trackIdx": 20,
+      "lateral": -0.03394536243312851,
+      "slip": 0.07090916484594345,
+      "impact": 0,
+      "cameraMode": "chase"
+    },
+    {
+      "label": "ff-to-finish",
+      "phase": "finished",
+      "speedKmh": 82,
+      "lap": 3,
+      "lapsCompleted": 3,
+      "lapTime": 0,
+      "laps": [
+        45.81549072265625,
+        43.87451171875,
+        43.877777099609375
+      ],
+      "bestLap": 43.87451171875,
+      "trackIdx": 20,
+      "lateral": -0.033934010063006115,
+      "slip": 0.015200188383460045,
+      "impact": 0,
+      "cameraMode": "chase"
+    }
+  ]
+}
