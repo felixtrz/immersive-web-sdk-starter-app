@@ -191,6 +191,12 @@ function runtimeState() {
   if (mtimeMs(installMarker) > mtimeMs(sessionFile)) {
     return { kind: 'stale', status };
   }
+  // Started with --no-open while browser setup ran. If the supervisor that ran
+  // setup was replaced (v0 re-runs `npm run dev` often), nobody opened the
+  // browser afterwards, so this must not count as healthy.
+  if (status?.state?.launch?.openBrowser === false) {
+    return { kind: 'browser-deferred', status };
+  }
   // Vite is up but the browser died on a stale profile lock; the runtime does
   // not retry the launch by itself, so clear the lock and restart once.
   if (hasProfileLockIssue(status)) {
@@ -206,11 +212,16 @@ function ensureRuntime() {
     log('Attached to the running IWSDK runtime (managed browser left untouched).');
     return true;
   }
-  const restart = state.kind === 'stale' || state.kind === 'browser-locked';
   // On a fresh VM the browser's system libraries (and possibly Chromium) must
   // be installed first, which can take minutes. Serve Vite immediately without
   // the browser, and open it once background setup finishes.
   const deferBrowser = needsSetup();
+  if (state.kind === 'browser-deferred' && deferBrowser) {
+    log('Attached to the running IWSDK runtime; managed browser opens once setup finishes.');
+    setUpBrowserInBackground();
+    return true;
+  }
+  const restart = state.kind !== 'missing';
   const args = [
     'dev',
     restart ? 'restart' : 'up',
@@ -222,7 +233,9 @@ function ensureRuntime() {
       ? 'node_modules was reinstalled after the runtime started; restarting it once...'
       : state.kind === 'browser-locked'
         ? 'Managed browser failed on a stale profile lock; restarting the runtime once...'
-        : 'Starting the IWSDK runtime with a headless managed browser...',
+        : state.kind === 'browser-deferred'
+          ? 'Browser setup finished under an earlier supervisor; restarting once with the managed browser...'
+          : 'Starting the IWSDK runtime with a headless managed browser...',
   );
   const result = iwsdk(args);
   if (result.status !== 0) {

@@ -186,13 +186,72 @@ function ensureChromium() {
 }
 
 export function needsSetup() {
+  // Playwright marks chromium complete before it finishes the headless shell,
+  // so a running setup counts as unfinished regardless of the probe below.
+  if (lockOwnerAlive()) return true;
   const missingLibraries =
     process.platform === "linux" && has("dnf") && !librariesPresent();
   const executable = chromiumExecutablePath();
   return missingLibraries || (executable != null && !chromiumWorks(executable));
 }
 
+// --- Single setup at a time ---------------------------------------------------
+//
+// v0 often launches a second `npm run dev` while the first one's setup is
+// still running. Two concurrent dnf transactions or Playwright downloads into
+// the same folder collide, so setups queue on a pid lock file. A lock whose
+// owner is dead (killed with its supervisor) is taken over.
+
+const lockFile = path.join(projectRoot, ".iwsdk", "runtime", "browser-setup.lock");
+const LOCK_WAIT_MS = 10 * 60_000;
+
+function lockOwnerAlive() {
+  let pid;
+  try {
+    pid = Number(fs.readFileSync(lockFile, "utf8"));
+  } catch {
+    return false;
+  }
+  if (!Number.isInteger(pid) || pid === process.pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === "EPERM";
+  }
+}
+
+async function acquireSetupLock() {
+  fs.mkdirSync(path.dirname(lockFile), { recursive: true });
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  let announced = false;
+  while (Date.now() < deadline) {
+    try {
+      fs.writeFileSync(lockFile, String(process.pid), { flag: "wx" });
+      return;
+    } catch {}
+    if (!lockOwnerAlive()) {
+      fs.rmSync(lockFile, { force: true });
+      continue;
+    }
+    if (!announced) {
+      console.log("[setup] Another browser setup is running; waiting for it...");
+      announced = true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  warn("Timed out waiting for another browser setup; continuing anyway.");
+}
+
+function releaseSetupLock() {
+  try {
+    if (Number(fs.readFileSync(lockFile, "utf8")) === process.pid) fs.rmSync(lockFile);
+  } catch {}
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await acquireSetupLock();
+  process.on("exit", releaseSetupLock);
   ensureSystemLibraries();
   ensureChromium();
   process.exit(0);
