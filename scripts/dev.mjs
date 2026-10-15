@@ -125,6 +125,49 @@ function exitIfSuperseded() {
   process.exit(0);
 }
 
+// --- Stale Chromium profile locks --------------------------------------------
+//
+// The managed browser profile lives under /tmp, which in the v0 sandbox sits
+// on the persistent disk. When the VM is replaced, the old VM's SingletonLock
+// (a symlink to "<host>-<pid>") survives, and Chromium refuses to launch with
+// "profile appears to be in use by another Chromium process on another
+// computer". Remove locks whose owning process is not alive on this machine.
+
+const browserProfilesDir = path.join(
+  '/tmp',
+  `.iwsdk-browser-${typeof process.getuid === 'function' ? process.getuid() : ''}`,
+);
+const SINGLETON_FILES = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+
+function clearStaleBrowserLocks() {
+  let profiles;
+  try {
+    profiles = fs.readdirSync(browserProfilesDir);
+  } catch {
+    return;
+  }
+  for (const name of profiles) {
+    const profile = path.join(browserProfilesDir, name);
+    let target;
+    try {
+      target = fs.readlinkSync(path.join(profile, 'SingletonLock'));
+    } catch {
+      continue;
+    }
+    const pid = Number(target.slice(target.lastIndexOf('-') + 1));
+    if (Number.isInteger(pid) && isAlive(pid)) continue;
+    for (const file of SINGLETON_FILES) {
+      fs.rmSync(path.join(profile, file), { force: true });
+    }
+    log(`Removed stale Chromium profile lock (${target}) left by a previous VM.`);
+  }
+}
+
+function hasProfileLockIssue(status) {
+  const message = status?.state?.browserIssue?.message ?? '';
+  return message.includes('profile appears to be in use');
+}
+
 // --- Runtime health ----------------------------------------------------------
 
 function readStatus() {
@@ -147,23 +190,31 @@ function runtimeState() {
   if (mtimeMs(installMarker) > mtimeMs(sessionFile)) {
     return { kind: 'stale', status };
   }
+  // Vite is up but the browser died on a stale profile lock; the runtime does
+  // not retry the launch by itself, so clear the lock and restart once.
+  if (hasProfileLockIssue(status)) {
+    return { kind: 'browser-locked', status };
+  }
   return { kind: 'healthy', status };
 }
 
 function ensureRuntime() {
+  clearStaleBrowserLocks();
   const state = runtimeState();
   if (state.kind === 'healthy') {
     log('Attached to the running IWSDK runtime (managed browser left untouched).');
     return true;
   }
-  const args =
-    state.kind === 'stale'
-      ? ['dev', 'restart', '--headless']
-      : ['dev', 'up', '--headless'];
+  const restart = state.kind === 'stale' || state.kind === 'browser-locked';
+  const args = restart
+    ? ['dev', 'restart', '--headless']
+    : ['dev', 'up', '--headless'];
   log(
     state.kind === 'stale'
       ? 'node_modules was reinstalled after the runtime started; restarting it once...'
-      : 'Starting the IWSDK runtime with a headless managed browser...',
+      : state.kind === 'browser-locked'
+        ? 'Managed browser failed on a stale profile lock; restarting the runtime once...'
+        : 'Starting the IWSDK runtime with a headless managed browser...',
   );
   const result = iwsdk(args);
   if (result.status !== 0) {
