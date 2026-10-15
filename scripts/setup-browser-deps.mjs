@@ -15,14 +15,22 @@
  * limitations under the License.
  */
 
-// `predev` hook: makes sure IWSDK's managed headless Chromium (Playwright)
-// can actually launch before the runtime tries to start it.
+// Makes sure IWSDK's managed headless Chromium (Playwright) can launch.
+// `scripts/dev.mjs` runs this in the background AFTER Vite is serving, then
+// opens the managed browser — so a slow first-boot setup never delays the
+// preview port (v0 gives up with "could not start server" if it waits too long).
 //
 //   1. System libraries — on the Fedora-based v0 sandbox, install Chromium's
-//      shared-library dependencies via dnf if they are missing.
+//      shared-library dependencies via dnf if they are missing. These live
+//      outside the persistent project disk, so every fresh VM needs them again.
 //   2. Browser binary — verify Playwright's Chromium is fully installed and
 //      runs. An interrupted download leaves a partial binary that segfaults
 //      (SIGSEGV) on every launch; detect that and reinstall it.
+//
+// Browsers are kept in node_modules/.cache/ms-playwright instead of
+// ~/.cache: the project directory survives VM replacement, the home directory
+// does not, so the ~300 MB download happens once rather than on every new VM.
+// node_modules is ignored by git and by Vite's watcher.
 //
 // DEV-ONLY: the app and the production `dist/` build never launch Chromium.
 // Idempotent and fast when everything is already in place (one `--version`
@@ -32,6 +40,13 @@ import { execSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+export const browsersPath = path.join(projectRoot, "node_modules", ".cache", "ms-playwright");
+// Must be set before playwright-core is required; child processes (the IWSDK
+// runtime that launches Chromium) inherit it from scripts/dev.mjs.
+process.env.PLAYWRIGHT_BROWSERS_PATH ||= browsersPath;
 
 const require = createRequire(import.meta.url);
 
@@ -170,6 +185,15 @@ function ensureChromium() {
   }
 }
 
-ensureSystemLibraries();
-ensureChromium();
-process.exit(0);
+export function needsSetup() {
+  const missingLibraries =
+    process.platform === "linux" && has("dnf") && !librariesPresent();
+  const executable = chromiumExecutablePath();
+  return missingLibraries || (executable != null && !chromiumWorks(executable));
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  ensureSystemLibraries();
+  ensureChromium();
+  process.exit(0);
+}

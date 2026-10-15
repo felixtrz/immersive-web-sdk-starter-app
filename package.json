@@ -9,7 +9,6 @@
     "url": "git+https://github.com/meta-quest/iwsdk-v0-template.git"
   },
   "scripts": {
-    "predev": "node scripts/setup-browser-deps.mjs",
     "dev": "node scripts/dev.mjs",
     "dev:restart": "iwsdk dev restart --headless",
     "dev:runtime": "vite",

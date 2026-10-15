@@ -37,9 +37,10 @@
 // Ctrl+C in an interactive terminal stops the runtime (`iwsdk dev down`).
 // Platform signals (SIGTERM/SIGHUP) only detach and leave it running.
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { needsSetup } from './setup-browser-deps.mjs';
 
 const root = process.cwd();
 const runtimeDir = path.join(root, '.iwsdk', 'runtime');
@@ -206,9 +207,16 @@ function ensureRuntime() {
     return true;
   }
   const restart = state.kind === 'stale' || state.kind === 'browser-locked';
-  const args = restart
-    ? ['dev', 'restart', '--headless']
-    : ['dev', 'up', '--headless'];
+  // On a fresh VM the browser's system libraries (and possibly Chromium) must
+  // be installed first, which can take minutes. Serve Vite immediately without
+  // the browser, and open it once background setup finishes.
+  const deferBrowser = needsSetup();
+  const args = [
+    'dev',
+    restart ? 'restart' : 'up',
+    '--headless',
+    ...(deferBrowser ? ['--no-open'] : []),
+  ];
   log(
     state.kind === 'stale'
       ? 'node_modules was reinstalled after the runtime started; restarting it once...'
@@ -221,7 +229,30 @@ function ensureRuntime() {
     log(`iwsdk ${args.join(' ')} exited with code ${result.status}; will retry.`);
     return false;
   }
+  if (deferBrowser) setUpBrowserInBackground();
   return true;
+}
+
+let browserSetupRunning = false;
+
+function setUpBrowserInBackground() {
+  if (browserSetupRunning) return;
+  browserSetupRunning = true;
+  log('Vite is serving; installing managed-browser dependencies in the background...');
+  const setup = spawn(process.execPath, [path.join(root, 'scripts', 'setup-browser-deps.mjs')], {
+    cwd: root,
+    stdio: 'inherit',
+  });
+  setup.on('close', () => {
+    browserSetupRunning = false;
+    if (stopping || isSuperseded()) return;
+    // A runtime started with --no-open cannot enable its browser later
+    // (`iwsdk dev open` is a no-op), so restart once with the browser on.
+    // The preview port is already registered by now; this is a brief blip.
+    log('Browser dependencies ready; restarting the runtime once with the managed browser...');
+    const result = iwsdk(['dev', 'restart', '--headless']);
+    if (result.status === 0) startTailAtEnd();
+  });
 }
 
 async function waitForHttp(url) {

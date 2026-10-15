@@ -71,10 +71,14 @@ headset on the LAN does not — deploy, or run `IWSDK_DEV_HTTPS=1 npm run dev`.
 Before using any scene/ecs/ui/xr/browser tool in the sandbox, confirm the
 runtime with `npx @iwsdk/cli dev status` (`running`, `browserConnected` and
 `browserCommandReady` all `true`). If it is not running, `npm run dev` brings it
-up; do not restart a healthy runtime. The `predev` hook
-(`scripts/setup-browser-deps.mjs`) installs Chromium's system libraries and
-verifies Playwright's Chromium actually launches, reinstalling it if a partial
-download left a binary that segfaults.
+up; do not restart a healthy runtime. On a fresh VM, `npm run dev` serves Vite
+first (`--no-open`) and runs `scripts/setup-browser-deps.mjs` in the background
+— installing Chromium's system libraries and verifying/reinstalling Playwright's
+Chromium — then opens the managed browser. Setup must never block the preview
+port: v0 reports "could not start server" if the port does not open in time.
+Playwright browsers live in `node_modules/.cache/ms-playwright` (persists across
+VM replacement; `~/.cache` does not), so expect `browserConnected: false` for
+the first minute or two after a VM boots.
 
 `vercel.json` pins `framework: vite`, `outputDirectory: dist`, and an SPA rewrite.
 Vercel checks the filesystem before rewrites, so files under `public/` still win
