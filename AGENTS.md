@@ -63,6 +63,7 @@ a terminal, and Claude Code pre-installed. These platform deltas matter:
 | `envDir: false` in `vite.config.ts` | v0 rewrites `.env.development.local` at the end of every turn; Vite restarts on env-file changes, which dropped the browser bridge. The app reads no `VITE_*` env vars — if you add some, define them in `vite.config.ts` instead. |
 | Dev server serves plain HTTP | The sandbox proxy terminates TLS. `iwsdkDev({ https: false })` is the default here; set `IWSDK_DEV_HTTPS=1` for LAN headset testing. |
 | `allowedHosts: true` | The preview is served through a generated sandbox hostname, not `localhost`. |
+| Fallback tunnel URL (`scripts/tunnel.mjs`) | The v0 edge can keep `vm-*.vusercontent.net` mapped to a stopped sandbox (`404 SANDBOX_NOT_FOUND`) while this VM is healthy. In the sandbox, `npm run dev` keeps a Cloudflare quick tunnel up and logs `Fallback preview URL: …`; `npm run tunnel` prints it. The URL changes when the VM is replaced. Disable with `IWSDK_TUNNEL=0`. |
 
 WebXR needs a secure context. `http://localhost` qualifies, and so does the
 sandbox's HTTPS preview URL, so the IWER emulator works in the v0 preview. A real

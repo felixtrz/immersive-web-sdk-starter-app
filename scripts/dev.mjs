@@ -268,6 +268,44 @@ function setUpBrowserInBackground() {
   });
 }
 
+// --- Fallback public URL (v0 sandbox only) -----------------------------------
+//
+// The v0 edge sometimes keeps vm-*.vusercontent.net mapped to a stopped
+// sandbox (404 SANDBOX_NOT_FOUND) while this VM serves fine. Keep a Cloudflare
+// quick tunnel up as a URL that does not depend on that mapping. It is public
+// (unguessable), so it only starts automatically in the sandbox; elsewhere opt
+// in with IWSDK_TUNNEL=1. IWSDK_TUNNEL=0 disables it.
+
+const TUNNEL_EVERY_POLLS = 60;
+const tunnelEnabled =
+  process.env.IWSDK_TUNNEL === '1' ||
+  (process.env.IWSDK_TUNNEL !== '0' && fs.existsSync('/vercel/share/.env.project'));
+let tunnelRunning = false;
+
+function ensureTunnel() {
+  if (!tunnelEnabled || tunnelRunning || stopping) return;
+  tunnelRunning = true;
+  const child = spawn(process.execPath, [path.join(root, 'scripts', 'tunnel.mjs')], {
+    cwd: root,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.on('data', (chunk) => (output += chunk));
+  child.stderr.on('data', (chunk) => (output += chunk));
+  child.on('close', () => {
+    tunnelRunning = false;
+    const url = output.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/)?.[0];
+    if (url && url !== lastTunnelUrl) {
+      lastTunnelUrl = url;
+      log(`Fallback preview URL (use if the v0 preview shows SANDBOX_NOT_FOUND): ${url}`);
+    } else if (!url) {
+      log(`Fallback tunnel unavailable: ${output.trim()}`);
+    }
+  });
+}
+
+let lastTunnelUrl = null;
+
 async function waitForHttp(url) {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -386,6 +424,7 @@ const status = readStatus();
 const localUrl = status?.runtimeUrls?.local ?? 'http://localhost:5173/';
 if (await waitForHttp(localUrl)) {
   printReadyBanner(status);
+  ensureTunnel();
 } else {
   log(`Runtime did not answer at ${localUrl} within ${READY_TIMEOUT_MS / 1000}s; still watching.`);
 }
@@ -396,6 +435,7 @@ setInterval(() => {
   exitIfSuperseded();
   pumpLog();
   polls += 1;
+  if (polls % TUNNEL_EVERY_POLLS === 0) ensureTunnel();
   if (polls % HEALTH_EVERY_POLLS !== 0) return;
   if (!isAlive(readJson(sessionFile)?.pid ?? null) && runtimeState().kind === 'missing') {
     log('IWSDK runtime is not running; relaunching.');
