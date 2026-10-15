@@ -221,13 +221,19 @@ function ensureRuntime() {
     setUpBrowserInBackground();
     return true;
   }
+  // A stale profile lock only breaks the browser; Vite is fine. Clear the lock
+  // (done above) and retry the launch in place instead of restarting Vite.
+  if (state.kind === 'browser-locked') {
+    log('Managed browser failed on a stale profile lock; retrying the launch in place...');
+    recoverBrowser();
+    return true;
+  }
   const restart = state.kind !== 'missing';
-  const args = [
-    'dev',
-    restart ? 'restart' : 'up',
-    '--headless',
-    ...(deferBrowser ? ['--no-open'] : []),
-  ];
+  // Always start with the browser enabled. On a fresh VM its launch fails until
+  // setup installs the system libraries; `runtime recover` then retries it in
+  // place. Never restart Vite for the browser: v0 watches the preview port, and
+  // the port vanishing right after startup reads as "could not start server".
+  const args = ['dev', restart ? 'restart' : 'up', '--headless', '--open'];
   log(
     state.kind === 'stale'
       ? 'node_modules was reinstalled after the runtime started; restarting it once...'
@@ -259,13 +265,66 @@ function setUpBrowserInBackground() {
   setup.on('close', () => {
     browserSetupRunning = false;
     if (stopping || isSuperseded()) return;
-    // A runtime started with --no-open cannot enable its browser later
-    // (`iwsdk dev open` is a no-op), so restart once with the browser on.
-    // The preview port is already registered by now; this is a brief blip.
-    log('Browser dependencies ready; restarting the runtime once with the managed browser...');
-    const result = iwsdk(['dev', 'restart', '--headless']);
-    if (result.status === 0) startTailAtEnd();
+    log('Browser dependencies ready; launching the managed browser (Vite keeps serving)...');
+    recoverBrowser();
   });
+}
+
+function browserState() {
+  const result = iwsdk(['runtime', 'status', '--raw'], true);
+  try {
+    const json = JSON.parse(result.stdout);
+    const data = json.data ?? json;
+    return data.browser ?? data.session?.browser ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const RECOVER_ATTEMPTS = 3;
+const RECOVER_WAIT_MS = 45_000;
+let recovering = false;
+
+async function recoverBrowser() {
+  if (recovering) return;
+  recovering = true;
+  try {
+    for (let attempt = 1; attempt <= RECOVER_ATTEMPTS; attempt += 1) {
+      if (stopping || isSuperseded()) return;
+      if (browserState()?.connected) {
+        log('Managed browser connected.');
+        return;
+      }
+      iwsdk(['runtime', 'recover', '--input-json', '{}'], true);
+      const deadline = Date.now() + RECOVER_WAIT_MS;
+      while (Date.now() < deadline) {
+        await sleep(2000);
+        const browser = browserState();
+        if (browser?.connected) {
+          log('Managed browser connected.');
+          return;
+        }
+        if (browser?.lifecycle?.state === 'failed') break;
+      }
+      log(`Managed browser not connected yet (attempt ${attempt}/${RECOVER_ATTEMPTS}).`);
+    }
+    // Last resort only: an older runtime that cannot launch in place.
+    if (stopping || isSuperseded()) return;
+    log('In-place launch kept failing; restarting the runtime once with the managed browser...');
+    if (iwsdk(['dev', 'restart', '--headless', '--open']).status === 0) startTailAtEnd();
+  } finally {
+    recovering = false;
+  }
+}
+
+// Software-rendered WebGL in headless Chromium will take every core it can get.
+// Run it at the lowest CPU priority so the sandbox's own agent, file sync and
+// preview proxy always win; the browser only uses otherwise idle CPU.
+function deprioritizeBrowser() {
+  const found = spawnSync('pgrep', ['-f', 'ms-playwright/chromium'], { encoding: 'utf8' });
+  const pids = (found.stdout ?? '').split('\n').filter(Boolean);
+  if (pids.length === 0) return;
+  spawnSync('renice', ['-n', '19', '-p', ...pids], { stdio: 'ignore' });
 }
 
 // --- Fallback public URL (v0 sandbox only) -----------------------------------
@@ -437,6 +496,7 @@ setInterval(() => {
   polls += 1;
   if (polls % TUNNEL_EVERY_POLLS === 0) ensureTunnel();
   if (polls % HEALTH_EVERY_POLLS !== 0) return;
+  deprioritizeBrowser();
   if (!isAlive(readJson(sessionFile)?.pid ?? null) && runtimeState().kind === 'missing') {
     log('IWSDK runtime is not running; relaunching.');
     if (ensureRuntime()) startTailAtEnd();
