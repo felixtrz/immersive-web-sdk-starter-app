@@ -1,4 +1,5 @@
-import { createSystem, Entity, InputComponent } from '@iwsdk/core';
+import { createSystem, InputComponent } from '@iwsdk/core';
+import { type EntityRef, trackSingle } from './query-refs.js';
 import { Kart, KartControls, RacePhase, RaceState } from '../race-components.js';
 import { SPAWN } from '../track.js';
 
@@ -8,12 +9,15 @@ export const COUNTDOWN_SECONDS = 3;
 export class RaceSystem extends createSystem({
   kart: { required: [Kart, KartControls, RaceState] },
 }) {
+  private kartRef!: EntityRef;
+
   init(): void {
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
     this.globals.restartRace = () => this.restart();
   }
 
   update(delta: number): void {
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
     if (!kart) return;
     const phase = kart.getValue(RaceState, 'phase');
     const kb = this.input.keyboard;
@@ -42,7 +46,7 @@ export class RaceSystem extends createSystem({
 
   /** Back to the grid; the session best lap and its ghost are kept. */
   restart(): void {
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
     if (!kart?.object3D) return;
     kart.object3D.position.set(SPAWN.x, 0, SPAWN.z);
     kart.object3D.rotation.set(0, SPAWN.yaw, 0);

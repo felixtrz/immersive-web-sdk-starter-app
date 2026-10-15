@@ -1,7 +1,6 @@
 import { AssetType, defineAssets } from '@iwsdk/core';
 import cone from './scene-assets/cone.scene-asset.js';
 import ghostKart from './scene-assets/ghost-kart.scene-asset.js';
-import kart from './scene-assets/kart.scene-asset.js';
 import steeringWheel from './scene-assets/steering-wheel.scene-asset.js';
 import track from './scene-assets/track.scene-asset.js';
 
@@ -12,7 +11,11 @@ const publicAssetUrl = (filePath: string): string =>
 
 export default defineAssets({
   track,
-  kart,
+  kart: {
+    url: publicAssetUrl('gltf/kart/kart.glb'),
+    type: AssetType.GLTF,
+    name: 'Player Kart',
+  },
   'ghost-kart': ghostKart,
   'steering-wheel': steeringWheel,
   cone,

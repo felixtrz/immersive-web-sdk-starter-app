@@ -1,10 +1,14 @@
-import { createSystem, Entity, UIKit, UIKitMLAsset, VisibilityState } from '@iwsdk/core';
+import { createSystem, UIKit, UIKitMLAsset, VisibilityState } from '@iwsdk/core';
 import { Kart, KartControls, RacePhase, RaceState } from '../race-components.js';
 import { LAP_COUNT } from '../track.js';
+import { type EntityRef, trackSingle } from './query-refs.js';
+import { DeltaLabel, intLabel, LAP_BANNER, LAP_OF, NO_DELTA, TimeLabel } from './race-labels.js';
 
 const REFRESH = 0.1;
 const PEDAL_REFRESH = 1 / 30;
-const PEDAL_HEIGHT = 150;
+/** Pedal bars scale in fixed steps so a held pedal pushes no updates and nothing re-runs layout. */
+const PEDAL_STEPS = 16;
+const PEDAL_MIN_SCALE = 0.001;
 const LIGHT_ON = '#e8322b';
 const LIGHT_GO = '#3fcf5a';
 const LIGHT_OFF = '#3a3f47';
@@ -14,35 +18,38 @@ const AMBER = '#ffb020';
 const CREAM = '#f4f1ea';
 const WHITE = '#ffffff';
 const TEXT_FIELDS = ['speed', 'lap', 'time', 'best', 'delta', 'status'] as const;
-
-function fmt(t: number): string {
-  if (t < 0) return '--:--.--';
-  const m = Math.floor(t / 60);
-  const s = t - m * 60;
-  return `${m}:${s < 10 ? '0' : ''}${s.toFixed(2)}`;
-}
-
-function signed(d: number): string {
-  return `${d < 0 ? '-' : '+'}${Math.abs(d).toFixed(2)}`;
-}
+type Field = (typeof TEXT_FIELDS)[number];
+type ColorField = 'delta' | 'status';
 
 /**
  * Drives the steering-column display: gauges, start lights, race messages and
  * live throttle/brake bars. In VR this is the only race readout, so it carries
- * everything the floating desktop HUD shows.
+ * everything the floating desktop HUD shows. Values are compared as numbers and
+ * only formatted / pushed to UIKit when what is displayed actually changes.
  */
 export class DashboardSystem extends createSystem({
   kart: { required: [Kart, RaceState, KartControls] },
 }) {
-  private text: Partial<Record<(typeof TEXT_FIELDS)[number], UIKit.Text>> = {};
+  private kartRef!: EntityRef;
+  private text: Partial<Record<Field, UIKit.Text>> = {};
   private lights: UIKit.Container[] = [];
+  private lightColors: string[] = [];
   private thr: UIKit.Container | undefined;
   private brk: UIKit.Container | undefined;
-  private cache: Record<string, string> = {};
+  private thrStep = 0;
+  private brkStep = 0;
+  private textCache: Partial<Record<Field, string>> = {};
+  private colorCache: Partial<Record<ColorField, string>> = {};
   private elapsed = 0;
   private pedalElapsed = 0;
+  private readonly timeLabel = new TimeLabel();
+  private readonly bestLabel = new TimeLabel();
+  private readonly lastLabel = new TimeLabel('LAST ');
+  private readonly finishLabel = new TimeLabel('FINISH ');
+  private readonly deltaLabel = new DeltaLabel();
 
   init(): void {
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
     const dash = this.world.getSceneObject<UIKitMLAsset>('dashboard');
     for (const id of TEXT_FIELDS) {
       const el = dash?.getElementById<UIKit.Text>(id);
@@ -50,10 +57,15 @@ export class DashboardSystem extends createSystem({
     }
     for (let i = 1; i <= 3; i++) {
       const el = dash?.getElementById<UIKit.Container>(`light-${i}`);
-      if (el) this.lights.push(el);
+      if (el) {
+        this.lights.push(el);
+        this.lightColors.push('');
+      }
     }
     this.thr = dash?.getElementById<UIKit.Container>('thr-fill') ?? undefined;
     this.brk = dash?.getElementById<UIKit.Container>('brk-fill') ?? undefined;
+    this.thr?.setProperties({ transformOriginY: 'bottom', transformScaleY: PEDAL_MIN_SCALE });
+    this.brk?.setProperties({ transformOriginY: 'bottom', transformScaleY: PEDAL_MIN_SCALE });
 
     const panel = this.world.getSceneObject<UIKitMLAsset>('race-panel');
     const xrButton = panel?.getElementById('xr-button');
@@ -78,14 +90,22 @@ export class DashboardSystem extends createSystem({
   }
 
   update(delta: number): void {
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
     if (!kart) return;
 
     this.pedalElapsed += delta;
     if (this.pedalElapsed >= PEDAL_REFRESH) {
       this.pedalElapsed = 0;
-      this.pedal('thr', this.thr, kart.getValue(KartControls, 'throttle')!);
-      this.pedal('brk', this.brk, kart.getValue(KartControls, 'brake')!);
+      const thr = pedalStep(kart.getValue(KartControls, 'throttle')!);
+      if (thr !== this.thrStep) {
+        this.thrStep = thr;
+        this.thr?.setProperties({ transformScaleY: stepScale(thr) });
+      }
+      const brk = pedalStep(kart.getValue(KartControls, 'brake')!);
+      if (brk !== this.brkStep) {
+        this.brkStep = brk;
+        this.brk?.setProperties({ transformScaleY: stepScale(brk) });
+      }
     }
 
     this.elapsed += delta;
@@ -93,7 +113,6 @@ export class DashboardSystem extends createSystem({
     this.elapsed = 0;
 
     const phase = kart.getValue(RaceState, 'phase');
-    const kmh = Math.round(Math.abs(kart.getValue(Kart, 'speed')!) * 3.6);
     const best = kart.getValue(RaceState, 'bestLap')!;
     const done = kart.getValue(RaceState, 'lapsCompleted')!;
     const lapTime = kart.getValue(RaceState, 'lapTime')!;
@@ -101,16 +120,16 @@ export class DashboardSystem extends createSystem({
     const last = kart.getValue(RaceState, 'lastLap')!;
     const racing = phase === RacePhase.Racing;
 
-    this.set('speed', String(kmh));
-    this.set('lap', `${Math.min(kart.getValue(RaceState, 'lap')!, LAP_COUNT)}/${LAP_COUNT}`);
-    this.set('time', fmt(phase === RacePhase.Finished ? last : racing ? lapTime : 0));
-    this.set('best', fmt(best));
+    this.set('speed', intLabel(Math.round(Math.abs(kart.getValue(Kart, 'speed')!) * 3.6)));
+    this.set('lap', LAP_OF[Math.min(kart.getValue(RaceState, 'lap')!, LAP_COUNT)]);
+    this.set('time', this.timeLabel.get(phase === RacePhase.Finished ? last : racing ? lapTime : 0));
+    this.set('best', this.bestLabel.get(best));
 
     const live = this.globals.liveDelta as number | undefined;
     const hasLive = racing && live !== undefined && !Number.isNaN(live);
     const shownDelta = hasLive ? live : lapDelta;
     const hasDelta = hasLive || (done > 1 && last >= 0);
-    this.set('delta', hasDelta ? signed(shownDelta) : '--.--');
+    this.set('delta', hasDelta ? this.deltaLabel.get(shownDelta) : NO_DELTA);
     this.color('delta', !hasDelta ? WHITE : shownDelta <= 0 ? GREEN : RED);
 
     let status = '';
@@ -120,9 +139,9 @@ export class DashboardSystem extends createSystem({
     if (phase === RacePhase.Idle) {
       status = 'READY - THROTTLE';
     } else if (phase === RacePhase.Countdown) {
-      const c = kart.getValue(RaceState, 'countdown')!;
-      lit = 3 - Math.ceil(c) + 1;
-      status = String(Math.max(1, Math.ceil(c)));
+      const c = Math.ceil(kart.getValue(RaceState, 'countdown')!);
+      lit = 3 - c + 1;
+      status = intLabel(Math.max(1, c));
       statusColor = AMBER;
     } else if (racing) {
       go = lapTime < 1.5 && done === 0;
@@ -130,51 +149,47 @@ export class DashboardSystem extends createSystem({
         status = 'GO!';
         statusColor = GREEN;
       } else if (done > 0 && lapTime < 2.5) {
-        status = done === LAP_COUNT - 1 ? 'FINAL LAP' : `LAP ${done + 1}`;
-        statusColor = done === LAP_COUNT - 1 ? AMBER : CREAM;
+        const final = done === LAP_COUNT - 1;
+        status = final ? 'FINAL LAP' : LAP_BANNER[done + 1];
+        statusColor = final ? AMBER : CREAM;
       } else {
-        status = last >= 0 ? `LAST ${fmt(last)}` : '';
+        status = last >= 0 ? this.lastLabel.get(last) : '';
       }
     } else {
-      const laps = [
-        kart.getValue(RaceState, 'lap1')!,
-        kart.getValue(RaceState, 'lap2')!,
-        kart.getValue(RaceState, 'lap3')!,
-      ];
-      const total = laps.every((l) => l >= 0) ? laps[0] + laps[1] + laps[2] : -1;
-      status = `FINISH ${fmt(total)}`;
+      const l1 = kart.getValue(RaceState, 'lap1')!;
+      const l2 = kart.getValue(RaceState, 'lap2')!;
+      const l3 = kart.getValue(RaceState, 'lap3')!;
+      status = this.finishLabel.get(l1 >= 0 && l2 >= 0 && l3 >= 0 ? l1 + l2 + l3 : -1);
       statusColor = GREEN;
     }
     this.set('status', status);
     this.color('status', statusColor);
 
-    this.lights.forEach((light, i) => {
+    for (let i = 0; i < this.lights.length; i++) {
       const color = go ? LIGHT_GO : i < lit ? LIGHT_ON : LIGHT_OFF;
-      const key = `light-${i}`;
-      if (this.cache[key] !== color) {
-        this.cache[key] = color;
-        light.setProperties({ backgroundColor: color });
-      }
-    });
+      if (this.lightColors[i] === color) continue;
+      this.lightColors[i] = color;
+      this.lights[i].setProperties({ backgroundColor: color });
+    }
   }
 
-  private pedal(key: string, el: UIKit.Container | undefined, value: number): void {
-    const h = String(Math.round(Math.max(0, Math.min(1, value)) * PEDAL_HEIGHT));
-    if (this.cache[key] === h) return;
-    this.cache[key] = h;
-    el?.setProperties({ height: Number(h) });
-  }
-
-  private color(id: (typeof TEXT_FIELDS)[number], value: string): void {
-    const k = `${id}:color`;
-    if (this.cache[k] === value) return;
-    this.cache[k] = value;
+  private color(id: ColorField, value: string): void {
+    if (this.colorCache[id] === value) return;
+    this.colorCache[id] = value;
     this.text[id]?.setProperties({ color: value });
   }
 
-  private set(id: (typeof TEXT_FIELDS)[number], value: string): void {
-    if (this.cache[id] === value) return;
-    this.cache[id] = value;
+  private set(id: Field, value: string): void {
+    if (this.textCache[id] === value) return;
+    this.textCache[id] = value;
     this.text[id]?.setProperties({ text: value });
   }
+}
+
+function pedalStep(value: number): number {
+  return Math.round(Math.max(0, Math.min(1, value)) * PEDAL_STEPS);
+}
+
+function stepScale(step: number): number {
+  return step === 0 ? PEDAL_MIN_SCALE : step / PEDAL_STEPS;
 }

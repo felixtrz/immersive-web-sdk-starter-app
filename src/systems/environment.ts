@@ -1,5 +1,16 @@
-import { createSystem, DirectionalLight, Entity, Fog, Mesh, MeshStandardMaterial, PCFSoftShadowMap } from '@iwsdk/core';
+import {
+  createSystem,
+  DirectionalLight,
+  Fog,
+  type InstancedMesh,
+  Mesh,
+  MeshDepthMaterial,
+  MeshStandardMaterial,
+  PCFSoftShadowMap,
+  RGBADepthPacking,
+} from '@iwsdk/core';
 import { Kart } from '../race-components.js';
+import { type EntityRef, trackSingle } from './query-refs.js';
 
 const FOG_COLOR = 0xb8d6ed;
 const SUN_OFFSET = { x: 50, y: 38, z: 28 } as const;
@@ -15,8 +26,22 @@ export class EnvironmentSystem extends createSystem({
 }) {
   private sun: DirectionalLight | null = null;
   private frames = 0;
+  private kartRef!: EntityRef;
+  /**
+   * three.js shares one depth material across every shadow caster and records
+   * instancing state on it, so alternating instanced / plain casters forces a
+   * program lookup (and cache-key string build) on each switch, every frame.
+   * Giving each instancing variant its own depth material keeps them stable.
+   */
+  private readonly instancedDepth = new MeshDepthMaterial({ depthPacking: RGBADepthPacking });
+  private readonly instancedColorDepth = new MeshDepthMaterial({ depthPacking: RGBADepthPacking });
 
   init(): void {
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
+    this.cleanupFuncs.push(
+      () => this.instancedDepth.dispose(),
+      () => this.instancedColorDepth.dispose(),
+    );
     const renderer = this.world.renderer;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = PCFSoftShadowMap;
@@ -42,8 +67,7 @@ export class EnvironmentSystem extends createSystem({
     }
     if ((SHADOW_PASSES_AT as readonly number[]).includes(this.frames)) this.applyShadowFlags();
 
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
-    const obj = kart?.object3D;
+    const obj = this.kartRef.current?.object3D;
     if (!obj) return;
     const p = obj.position;
     this.sun.position.set(p.x + SUN_OFFSET.x, p.y + SUN_OFFSET.y, p.z + SUN_OFFSET.z);
@@ -57,9 +81,14 @@ export class EnvironmentSystem extends createSystem({
       const mesh = o as Mesh;
       if (!mesh.isMesh) return;
       const mat = mesh.material as MeshStandardMaterial;
-      if (Array.isArray(mat) || !(mat instanceof MeshStandardMaterial) || mat.transparent) return;
-      mesh.receiveShadow = true;
-      if (!/^(Ground|Grass|Hills)/.test(mesh.name)) mesh.castShadow = true;
+      if (!Array.isArray(mat) && mat instanceof MeshStandardMaterial && !mat.transparent) {
+        mesh.receiveShadow = true;
+        if (!/^(Ground|Grass|Hills)/.test(mesh.name)) mesh.castShadow = true;
+      }
+      const instanced = o as InstancedMesh;
+      if (mesh.castShadow && instanced.isInstancedMesh && !mesh.customDepthMaterial) {
+        mesh.customDepthMaterial = instanced.instanceColor ? this.instancedColorDepth : this.instancedDepth;
+      }
     });
   }
 }

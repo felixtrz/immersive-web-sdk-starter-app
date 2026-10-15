@@ -1,8 +1,11 @@
-import { createSystem, Entity } from '@iwsdk/core';
+import { createSystem } from '@iwsdk/core';
 import { Kart, KartAudioState, RacePhase, RaceState } from '../race-components.js';
+import { type EntityRef, trackSingle } from './query-refs.js';
 
 const ENGINE_BASE_HZ = 48;
 const ENGINE_HZ_PER_MS = 5.2;
+const HZ_EPSILON = 0.4;
+const GAIN_EPSILON = 0.002;
 
 /**
  * WebAudio synth (no audio files in the repo): engine = two detuned oscillators
@@ -23,8 +26,13 @@ export class KartAudioSystem extends createSystem({
   private lastLaps = 0;
   private lastBestVersion = 0;
   private impactCooldown = 0;
+  private sentHz = -1;
+  private sentEngineGain = -1;
+  private sentSquealGain = -1;
+  private kartRef!: EntityRef;
 
   init(): void {
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
     const unlock = () => this.ensureContext();
     window.addEventListener('keydown', unlock);
     window.addEventListener('pointerdown', unlock);
@@ -40,7 +48,7 @@ export class KartAudioSystem extends createSystem({
   }
 
   update(delta: number): void {
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
     if (!kart) return;
     const speed = Math.abs(kart.getValue(Kart, 'speed')!);
     const slip = kart.getValue(Kart, 'slip')!;
@@ -51,12 +59,25 @@ export class KartAudioSystem extends createSystem({
 
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
+    // Each setTargetAtTime queues an automation event on the audio thread; only
+    // schedule one when the target has moved by an audible amount.
     const now = ctx.currentTime;
     const hz = ENGINE_BASE_HZ * pitch;
-    this.engineA?.frequency.setTargetAtTime(hz, now, 0.05);
-    this.engineB?.frequency.setTargetAtTime(hz * 2.01, now, 0.05);
-    this.engineGain?.gain.setTargetAtTime(0.05 + Math.min(1, speed / 25) * 0.07, now, 0.1);
-    this.squealGain?.gain.setTargetAtTime(squeal * 0.12, now, 0.05);
+    if (Math.abs(hz - this.sentHz) > HZ_EPSILON) {
+      this.sentHz = hz;
+      this.engineA?.frequency.setTargetAtTime(hz, now, 0.05);
+      this.engineB?.frequency.setTargetAtTime(hz * 2.01, now, 0.05);
+    }
+    const engineGain = 0.05 + Math.min(1, speed / 25) * 0.07;
+    if (Math.abs(engineGain - this.sentEngineGain) > GAIN_EPSILON) {
+      this.sentEngineGain = engineGain;
+      this.engineGain?.gain.setTargetAtTime(engineGain, now, 0.1);
+    }
+    const squealGain = squeal * 0.12;
+    if (Math.abs(squealGain - this.sentSquealGain) > GAIN_EPSILON || (squealGain === 0 && this.sentSquealGain !== 0)) {
+      this.sentSquealGain = squealGain;
+      this.squealGain?.gain.setTargetAtTime(squealGain, now, 0.05);
+    }
 
     this.impactCooldown -= delta;
     const impact = kart.getValue(Kart, 'impact')!;

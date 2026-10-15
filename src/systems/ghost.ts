@@ -1,4 +1,5 @@
-import { createSystem, Entity } from '@iwsdk/core';
+import { createSystem } from '@iwsdk/core';
+import { type EntityRef, trackSingle } from './query-refs.js';
 import { Ghost, Kart, RacePhase, RaceState } from '../race-components.js';
 
 const RATE = 30;
@@ -17,15 +18,26 @@ export class GhostSystem extends createSystem({
   private lastLaps = 0;
   private lastBestVersion = 0;
 
+  private kartRef!: EntityRef;
+  private ghostRef!: EntityRef;
+
   init(): void {
-    this.queries.ghost.subscribe('qualify', (entity) => {
-      if (entity.object3D) entity.object3D.visible = false;
-    }, true);
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
+    this.ghostRef = trackSingle(this.queries.ghost, this.cleanupFuncs);
+    this.cleanupFuncs.push(
+      this.queries.ghost.subscribe(
+        'qualify',
+        (entity) => {
+          if (entity.object3D) entity.object3D.visible = false;
+        },
+        true,
+      ),
+    );
   }
 
   update(): void {
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
-    const ghost = this.queries.ghost.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
+    const ghost = this.ghostRef.current;
     if (!kart?.object3D) return;
 
     const laps = kart.getValue(RaceState, 'lapsCompleted')!;

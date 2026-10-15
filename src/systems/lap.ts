@@ -1,4 +1,5 @@
-import { createSystem, Entity } from '@iwsdk/core';
+import { createSystem } from '@iwsdk/core';
+import { type EntityRef, trackSingle } from './query-refs.js';
 import { Kart, RacePhase, RaceState } from '../race-components.js';
 import { MAX_STEP } from '../sim/kart-physics.js';
 import { createLapState, LapEvent, stepLap } from '../sim/lap-tracker.js';
@@ -10,9 +11,14 @@ export class LapSystem extends createSystem({
   kart: { required: [Kart, RaceState] },
 }) {
   private state = createLapState();
+  private kartRef!: EntityRef;
+
+  init(): void {
+    this.kartRef = trackSingle(this.queries.kart, this.cleanupFuncs);
+  }
 
   update(delta: number): void {
-    const kart = this.queries.kart.entities.values().next().value as Entity | undefined;
+    const kart = this.kartRef.current;
     if (!kart) return;
     const idx = kart.getValue(Kart, 'trackIdx')!;
     const s = this.state;

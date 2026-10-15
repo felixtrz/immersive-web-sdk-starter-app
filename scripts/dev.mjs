@@ -37,9 +37,10 @@
 // Ctrl+C in an interactive terminal stops the runtime (`iwsdk dev down`).
 // Platform signals (SIGTERM/SIGHUP) only detach and leave it running.
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { needsSetup } from './setup-browser-deps.mjs';
 
 const root = process.cwd();
 const runtimeDir = path.join(root, '.iwsdk', 'runtime');
@@ -125,6 +126,49 @@ function exitIfSuperseded() {
   process.exit(0);
 }
 
+// --- Stale Chromium profile locks --------------------------------------------
+//
+// The managed browser profile lives under /tmp, which in the v0 sandbox sits
+// on the persistent disk. When the VM is replaced, the old VM's SingletonLock
+// (a symlink to "<host>-<pid>") survives, and Chromium refuses to launch with
+// "profile appears to be in use by another Chromium process on another
+// computer". Remove locks whose owning process is not alive on this machine.
+
+const browserProfilesDir = path.join(
+  '/tmp',
+  `.iwsdk-browser-${typeof process.getuid === 'function' ? process.getuid() : ''}`,
+);
+const SINGLETON_FILES = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+
+function clearStaleBrowserLocks() {
+  let profiles;
+  try {
+    profiles = fs.readdirSync(browserProfilesDir);
+  } catch {
+    return;
+  }
+  for (const name of profiles) {
+    const profile = path.join(browserProfilesDir, name);
+    let target;
+    try {
+      target = fs.readlinkSync(path.join(profile, 'SingletonLock'));
+    } catch {
+      continue;
+    }
+    const pid = Number(target.slice(target.lastIndexOf('-') + 1));
+    if (Number.isInteger(pid) && isAlive(pid)) continue;
+    for (const file of SINGLETON_FILES) {
+      fs.rmSync(path.join(profile, file), { force: true });
+    }
+    log(`Removed stale Chromium profile lock (${target}) left by a previous VM.`);
+  }
+}
+
+function hasProfileLockIssue(status) {
+  const message = status?.state?.browserIssue?.message ?? '';
+  return message.includes('profile appears to be in use');
+}
+
 // --- Runtime health ----------------------------------------------------------
 
 function readStatus() {
@@ -147,30 +191,81 @@ function runtimeState() {
   if (mtimeMs(installMarker) > mtimeMs(sessionFile)) {
     return { kind: 'stale', status };
   }
+  // Started with --no-open while browser setup ran. If the supervisor that ran
+  // setup was replaced (v0 re-runs `npm run dev` often), nobody opened the
+  // browser afterwards, so this must not count as healthy.
+  if (status?.state?.launch?.openBrowser === false) {
+    return { kind: 'browser-deferred', status };
+  }
+  // Vite is up but the browser died on a stale profile lock; the runtime does
+  // not retry the launch by itself, so clear the lock and restart once.
+  if (hasProfileLockIssue(status)) {
+    return { kind: 'browser-locked', status };
+  }
   return { kind: 'healthy', status };
 }
 
 function ensureRuntime() {
+  clearStaleBrowserLocks();
   const state = runtimeState();
   if (state.kind === 'healthy') {
     log('Attached to the running IWSDK runtime (managed browser left untouched).');
     return true;
   }
-  const args =
-    state.kind === 'stale'
-      ? ['dev', 'restart', '--headless']
-      : ['dev', 'up', '--headless'];
+  // On a fresh VM the browser's system libraries (and possibly Chromium) must
+  // be installed first, which can take minutes. Serve Vite immediately without
+  // the browser, and open it once background setup finishes.
+  const deferBrowser = needsSetup();
+  if (state.kind === 'browser-deferred' && deferBrowser) {
+    log('Attached to the running IWSDK runtime; managed browser opens once setup finishes.');
+    setUpBrowserInBackground();
+    return true;
+  }
+  const restart = state.kind !== 'missing';
+  const args = [
+    'dev',
+    restart ? 'restart' : 'up',
+    '--headless',
+    ...(deferBrowser ? ['--no-open'] : []),
+  ];
   log(
     state.kind === 'stale'
       ? 'node_modules was reinstalled after the runtime started; restarting it once...'
-      : 'Starting the IWSDK runtime with a headless managed browser...',
+      : state.kind === 'browser-locked'
+        ? 'Managed browser failed on a stale profile lock; restarting the runtime once...'
+        : state.kind === 'browser-deferred'
+          ? 'Browser setup finished under an earlier supervisor; restarting once with the managed browser...'
+          : 'Starting the IWSDK runtime with a headless managed browser...',
   );
   const result = iwsdk(args);
   if (result.status !== 0) {
     log(`iwsdk ${args.join(' ')} exited with code ${result.status}; will retry.`);
     return false;
   }
+  if (deferBrowser) setUpBrowserInBackground();
   return true;
+}
+
+let browserSetupRunning = false;
+
+function setUpBrowserInBackground() {
+  if (browserSetupRunning) return;
+  browserSetupRunning = true;
+  log('Vite is serving; installing managed-browser dependencies in the background...');
+  const setup = spawn(process.execPath, [path.join(root, 'scripts', 'setup-browser-deps.mjs')], {
+    cwd: root,
+    stdio: 'inherit',
+  });
+  setup.on('close', () => {
+    browserSetupRunning = false;
+    if (stopping || isSuperseded()) return;
+    // A runtime started with --no-open cannot enable its browser later
+    // (`iwsdk dev open` is a no-op), so restart once with the browser on.
+    // The preview port is already registered by now; this is a brief blip.
+    log('Browser dependencies ready; restarting the runtime once with the managed browser...');
+    const result = iwsdk(['dev', 'restart', '--headless']);
+    if (result.status === 0) startTailAtEnd();
+  });
 }
 
 async function waitForHttp(url) {
