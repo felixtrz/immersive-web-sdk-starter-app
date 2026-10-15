@@ -1,4 +1,4 @@
-import { createSystem, Entity, Euler, Object3D, Quaternion, Vector3 } from '@iwsdk/core';
+import { createSystem, Entity, Euler, type Mesh, Object3D, Quaternion, Vector3 } from '@iwsdk/core';
 import { Dashboard, Kart, KartControls, SteeringWheel } from '../race-components.js';
 import { CURB_DRAG_FROM } from '../sim/kart-physics.js';
 import { lateralOffset } from '../track.js';
@@ -105,6 +105,7 @@ export class KartFeelSystem extends createSystem({
   private bind(obj: Object3D): void {
     this.body = obj.getObjectByName('Body') ?? null;
     obj.traverse((child) => {
+      if ((child as Mesh).isMesh) child.castShadow = child.receiveShadow = true;
       if (child.name.startsWith('WheelSteer-F')) this.steerPivots.push(child);
       if (child.name.startsWith('WheelSpin-')) {
         this.spinPivots.push(child);
