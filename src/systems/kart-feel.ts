@@ -5,6 +5,8 @@ import { lateralOffset } from '../track.js';
 import { type EntityRef, trackSingle } from './query-refs.js';
 
 const MAX_WHEEL_YAW = 0.45;
+const STEER_PIVOT = /^WheelSteer-F[LR]$/u;
+const SPIN_PIVOT = /^WheelSpin-[FR][LR]$/u;
 const IMPACT_DECAY = 2.2;
 /** Peak sprung-body motion on a hard hit: small enough to read as a jolt, not a lurch. */
 const IMPACT_LIFT = 0.022;
@@ -106,10 +108,14 @@ export class KartFeelSystem extends createSystem({
     this.body = obj.getObjectByName('Body') ?? null;
     obj.traverse((child) => {
       if ((child as Mesh).isMesh) child.castShadow = child.receiveShadow = true;
-      if (child.name.startsWith('WheelSteer-F')) this.steerPivots.push(child);
-      if (child.name.startsWith('WheelSpin-')) {
+      // Exact names only: the glTF exporter splits each wheel into per-material
+      // child meshes ("WheelSpin-FL-Tire"), and spinning those by an undefined
+      // radius writes NaN into their matrices, which makes the wheels vanish.
+      if (STEER_PIVOT.test(child.name)) this.steerPivots.push(child);
+      const radius = child.userData.radius;
+      if (SPIN_PIVOT.test(child.name) && typeof radius === 'number' && radius > 0) {
         this.spinPivots.push(child);
-        this.spinRadii.push(child.userData.radius as number);
+        this.spinRadii.push(radius);
       }
     });
   }
